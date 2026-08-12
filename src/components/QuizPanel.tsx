@@ -93,8 +93,14 @@ export default function QuizPanel({
     const refocus = () => el.focus({ preventScroll: true });
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement === el) return;
+      const active = document.activeElement;
+      if (active === el) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // leave browser shortcuts alone
+      // Someone who has tabbed to a link or button means to activate it — don't
+      // snatch their Enter to submit an answer.
+      if (active instanceof HTMLElement && (active.tagName === "A" || active.tagName === "BUTTON")) {
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         refocus();

@@ -31,7 +31,15 @@ function Session({ store }: { store: Store }) {
   if (!current || !card) return <Summary tally={tally} />;
 
   return (
-    <main className="flex flex-1 flex-col">
+    <main className="relative flex flex-1 flex-col">
+      {/* Leaving mid-session is safe: every answer is committed as it's given, so
+          only the unanswered remainder goes back to the queue. */}
+      <Link
+        href="/"
+        className="absolute top-4 left-4 z-10 rounded-lg px-3 py-1.5 text-sm font-semibold text-white/75 transition-colors hover:bg-white/15 hover:text-white"
+      >
+        ← Dashboard
+      </Link>
       <QuizPanel
         key={`${card.id}:${current.task}:${current.incorrect}`}
         card={card}

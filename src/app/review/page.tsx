@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import QuizPanel from "@/components/QuizPanel";
 import AutoplayToggle from "@/components/AutoplayToggle";
+import SignIn from "@/components/SignIn";
 import { useStore, stateFor, newState } from "@/lib/store";
 import { applyRating, outcomeToRating } from "@/lib/scheduler";
 import { applyAnswer, buildQueue, pickNext, remaining } from "@/lib/session";
@@ -15,6 +16,7 @@ export default function Review() {
   if (!store.ready) {
     return <main className="flex flex-1 items-center justify-center text-muted">Loading…</main>;
   }
+  if (!store.signedIn) return <SignIn />;
   // Mounted only once the store has loaded, so the session can be built in a
   // useState initialiser and the current question derived rather than stored.
   return <Session store={store} />;

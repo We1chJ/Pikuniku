@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { bind, unbind } from "wanakana";
 import Nav from "@/components/Nav";
+import SignIn from "@/components/SignIn";
 import PronounceButton from "@/components/PronounceButton";
 import { useStore, tasksFor } from "@/lib/store";
 import { TYPE_LABEL } from "@/components/QuizPanel";
@@ -60,7 +61,7 @@ function splitAltReadings(s: string): AltReading[] {
 }
 
 export default function Cards() {
-  const { ready, cards, addCard, deleteCard } = useStore();
+  const { ready, signedIn, cards, addCard, deleteCard } = useStore();
   const [form, setForm] = useState(empty);
   const frontRef = useRef<HTMLInputElement>(null);
   const readingRef = useRef<HTMLInputElement>(null);
@@ -88,6 +89,8 @@ export default function Cards() {
     setForm(empty);
     frontRef.current?.focus();
   }
+
+  if (ready && !signedIn) return <SignIn />;
 
   return (
     <>

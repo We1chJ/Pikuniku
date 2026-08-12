@@ -1,17 +1,19 @@
 "use client";
 
 /**
- * Local persistence.
+ * The app's data layer.
  *
- * Supabase is deliberately deferred (plan §6.1), so this is localStorage for now.
- * The shape is chosen so swapping in Postgres is a change of adapter, not of
- * model: cards / progress / log are three independent collections, and the log
- * is only ever appended to.
+ * Two backends behind one interface: Supabase when the environment is
+ * configured, localStorage otherwise. That isn't hedging — it keeps the app
+ * usable before the keys exist, and means a missing env var degrades to "local
+ * only" rather than a blank screen.
  *
- * Implemented as a module-level store read through useSyncExternalStore rather
- * than useState + a hydration effect. localStorage genuinely *is* an external
- * store, and this is the API React provides for one — it also keeps every page
- * that reads it in sync without a context provider.
+ * Read through useSyncExternalStore rather than useState + an effect, because
+ * both backends genuinely are external stores and this keeps every page in sync
+ * without a context provider.
+ *
+ * Settings stay local in both modes: autoplay and the production toggle are
+ * preferences about *this device*, not part of the deck.
  */
 
 import { useSyncExternalStore } from "react";
@@ -19,6 +21,8 @@ import type { Card, Progress, ReviewLogEntry, TaskKind } from "./types";
 import { SEED_CARDS } from "./seed";
 import { isProducible } from "./cardinfer";
 import { newState } from "./scheduler";
+import { supabase, isRemote } from "./supabase";
+import * as remote from "./remote";
 
 const KEYS = {
   cards: "pikuniku.cards.v1",
@@ -41,18 +45,28 @@ const DEFAULT_SETTINGS: Settings = { autoplay: true, production: false };
 
 export interface Snapshot {
   ready: boolean;
+  /** True when backed by Supabase; false when running off localStorage. */
+  remote: boolean;
+  /** Null when signed out, or when running locally (where there is no sign-in). */
+  email: string | null;
+  signedIn: boolean;
   cards: Card[];
   progress: Record<string, Progress>;
   log: ReviewLogEntry[];
   settings: Settings;
+  error: string | null;
 }
 
 const EMPTY: Snapshot = {
   ready: false,
+  remote: isRemote,
+  email: null,
+  signedIn: !isRemote, // local mode has no sign-in, so it is always "in"
   cards: [],
   progress: {},
   log: [],
   settings: DEFAULT_SETTINGS,
+  error: null,
 };
 
 let snapshot: Snapshot = EMPTY;
@@ -61,6 +75,15 @@ const listeners = new Set<() => void>();
 function emit() {
   for (const l of listeners) l();
 }
+
+function set(next: Partial<Snapshot>) {
+  snapshot = { ...snapshot, ...next };
+  emit();
+}
+
+/* ------------------------------------------------------------------ *
+ * localStorage helpers (also used for settings in remote mode)
+ * ------------------------------------------------------------------ */
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -83,11 +106,7 @@ function seedCards(): Card[] {
   return SEED_CARDS.map((c) => ({ ...c, id: newId(), createdAt: Date.now() }));
 }
 
-/**
- * altReadings used to be a plain string[]; it now carries an optional reading
- * type. Widen anything stored under the old shape rather than making the user
- * rebuild their deck.
- */
+/** altReadings used to be string[]; widen anything stored under the old shape. */
 function migrate(cards: Card[]): Card[] {
   return cards.map((c) => ({
     ...c,
@@ -97,22 +116,65 @@ function migrate(cards: Card[]): Card[] {
   }));
 }
 
-function load() {
-  if (snapshot.ready || typeof window === "undefined") return;
+function readSettings(): Settings {
+  return { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) };
+}
+
+/* ------------------------------------------------------------------ *
+ * Loading
+ * ------------------------------------------------------------------ */
+
+let loading = false;
+
+function loadLocal() {
   let cards = migrate(read<Card[]>(KEYS.cards, []));
   if (cards.length === 0) {
     cards = seedCards();
     write(KEYS.cards, cards);
   }
-  snapshot = {
+  set({
     ready: true,
+    signedIn: true,
     cards,
     progress: read<Record<string, Progress>>(KEYS.progress, {}),
     log: read<ReviewLogEntry[]>(KEYS.log, []),
-    // Spread over the defaults so a setting added later doesn't come back
-    // undefined for anyone with existing storage.
-    settings: { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) },
-  };
+    settings: readSettings(),
+  });
+}
+
+async function loadRemote() {
+  if (!supabase) return;
+  const { data } = await supabase.auth.getSession();
+  const email = data.session?.user.email ?? null;
+
+  if (!email) {
+    set({ ready: true, signedIn: false, email: null, settings: readSettings() });
+    return;
+  }
+
+  try {
+    const { cards, progress, log } = await remote.fetchAll();
+    set({ ready: true, signedIn: true, email, cards, progress, log, settings: readSettings(), error: null });
+  } catch (e) {
+    set({ ready: true, signedIn: true, email, error: message(e), settings: readSettings() });
+  }
+}
+
+function message(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+function load() {
+  if (loading || typeof window === "undefined") return;
+  loading = true;
+  if (isRemote) {
+    void loadRemote();
+    supabase?.auth.onAuthStateChange(() => {
+      void loadRemote();
+    });
+  } else {
+    loadLocal();
+  }
 }
 
 function subscribe(cb: () => void) {
@@ -126,12 +188,39 @@ function subscribe(cb: () => void) {
 const getSnapshot = () => snapshot;
 const getServerSnapshot = () => EMPTY;
 
-function set(next: Partial<Snapshot>) {
-  snapshot = { ...snapshot, ...next };
-  emit();
+/* ------------------------------------------------------------------ *
+ * Auth
+ * ------------------------------------------------------------------ */
+
+export async function signIn(email: string): Promise<string> {
+  if (!supabase) return "Supabase is not configured.";
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.origin },
+  });
+  return error ? error.message : `Check ${email} for a sign-in link.`;
 }
 
+export async function signOut() {
+  await supabase?.auth.signOut();
+  set({ signedIn: false, email: null, cards: [], progress: {}, log: [] });
+}
+
+/* ------------------------------------------------------------------ *
+ * Mutations
+ *
+ * Each updates the snapshot first so the UI never waits on a round trip, then
+ * persists. A failed write surfaces in `error` rather than silently diverging.
+ * ------------------------------------------------------------------ */
+
 export function addCard(card: Omit<Card, "id" | "createdAt">) {
+  if (isRemote) {
+    void remote
+      .insertCard(card)
+      .then((created) => set({ cards: [...snapshot.cards, created], error: null }))
+      .catch((e) => set({ error: message(e) }));
+    return;
+  }
   const cards = [...snapshot.cards, { ...card, id: newId(), createdAt: Date.now() }];
   write(KEYS.cards, cards);
   set({ cards });
@@ -141,9 +230,14 @@ export function deleteCard(id: string) {
   const cards = snapshot.cards.filter((c) => c.id !== id);
   const progress = { ...snapshot.progress };
   delete progress[id];
+  set({ cards, progress });
+
+  if (isRemote) {
+    void remote.removeCard(id).catch((e) => set({ error: message(e) }));
+    return;
+  }
   write(KEYS.cards, cards);
   write(KEYS.progress, progress);
-  set({ cards, progress });
 }
 
 export function recordAnswer(
@@ -158,12 +252,19 @@ export function recordAnswer(
     ...snapshot.progress,
     [cardId]: { ...existing, tasks: { ...existing.tasks, [task]: nextState } },
   };
-  // Append-only: this is the collection that must merge cleanly once it syncs,
+  // Append-only: this is the collection that must merge cleanly across devices,
   // so it is never mutated or compacted in place.
   const log = [...snapshot.log, { id: newId(), cardId, task, input, outcome, at: Date.now() }];
+  set({ progress, log });
+
+  if (isRemote) {
+    void remote
+      .saveAnswer(cardId, task, input, outcome, nextState)
+      .catch((e) => set({ error: message(e) }));
+    return;
+  }
   write(KEYS.progress, progress);
   write(KEYS.log, log);
-  set({ progress, log });
 }
 
 export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -173,6 +274,15 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
 }
 
 export function resetAll() {
+  if (isRemote) {
+    // Deleting every card cascades progress and the log with it.
+    const ids = snapshot.cards.map((c) => c.id);
+    set({ cards: [], progress: {}, log: [] });
+    void Promise.all(ids.map((id) => remote.removeCard(id))).catch((e) =>
+      set({ error: message(e) }),
+    );
+    return;
+  }
   const cards = seedCards();
   write(KEYS.cards, cards);
   write(KEYS.progress, {});
@@ -180,17 +290,20 @@ export function resetAll() {
   set({ cards, progress: {}, log: [] });
 }
 
+/* ------------------------------------------------------------------ */
+
 export interface Store extends Snapshot {
   addCard: typeof addCard;
   deleteCard: typeof deleteCard;
   recordAnswer: typeof recordAnswer;
   setSetting: typeof setSetting;
   resetAll: typeof resetAll;
+  signOut: typeof signOut;
 }
 
 export function useStore(): Store {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, resetAll };
+  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, resetAll, signOut };
 }
 
 /**

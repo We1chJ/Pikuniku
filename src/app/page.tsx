@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Nav from "@/components/Nav";
+import SignIn from "@/components/SignIn";
 import { useStore, tasksFor } from "@/lib/store";
 import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib/scheduler";
 
@@ -9,7 +10,20 @@ import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib
 const LEECH_LAPSES = 4;
 
 export default function Dashboard() {
-  const { ready, cards, progress, log, settings, setSetting, resetAll } = useStore();
+  const {
+    ready,
+    signedIn,
+    email,
+    remote,
+    error,
+    cards,
+    progress,
+    log,
+    settings,
+    setSetting,
+    resetAll,
+    signOut,
+  } = useStore();
 
   if (!ready) {
     return (
@@ -19,6 +33,8 @@ export default function Dashboard() {
       </>
     );
   }
+
+  if (!signedIn) return <SignIn />;
 
   const now = new Date();
   const questions = cards.flatMap((c) =>
@@ -64,6 +80,11 @@ export default function Dashboard() {
     <>
       <Nav />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+        {error && (
+          <p className="mb-6 rounded-xl border border-incorrect bg-surface p-4 text-sm text-incorrect">
+            Couldn&rsquo;t reach Supabase: {error}. Answers you give now may not be saved.
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
             href="/review"
@@ -201,12 +222,25 @@ export default function Dashboard() {
           </label>
         </section>
 
-        <button
-          onClick={resetAll}
-          className="mt-8 text-xs text-muted underline underline-offset-4 hover:text-incorrect"
-        >
-          Reset all progress and restore the demo deck
-        </button>
+        <div className="mt-8 flex flex-wrap items-center gap-4">
+          <button
+            onClick={resetAll}
+            className="text-xs text-muted underline underline-offset-4 hover:text-incorrect"
+          >
+            {remote ? "Delete every card" : "Reset all progress and restore the demo deck"}
+          </button>
+          {remote && (
+            <>
+              <span className="text-xs text-muted">{email}</span>
+              <button
+                onClick={() => signOut()}
+                className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
+              >
+                Sign out
+              </button>
+            </>
+          )}
+        </div>
       </main>
     </>
   );

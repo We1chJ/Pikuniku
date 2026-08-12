@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import QuizPanel from "@/components/QuizPanel";
+import AutoplayToggle from "@/components/AutoplayToggle";
 import { useStore, stateFor, newState } from "@/lib/store";
 import { applyRating, outcomeToRating } from "@/lib/scheduler";
 import { applyAnswer, buildQueue, pickNext, remaining } from "@/lib/session";
@@ -40,7 +41,14 @@ function Session({ store }: { store: Store }) {
       >
         ← Dashboard
       </Link>
+      <div className="absolute top-4 right-4 z-10">
+        <AutoplayToggle
+          on={store.settings.autoplay}
+          onChange={(next) => store.setSetting("autoplay", next)}
+        />
+      </div>
       <QuizPanel
+        autoplay={store.settings.autoplay}
         key={`${card.id}:${current.task}:${current.incorrect}`}
         card={card}
         task={current.task}

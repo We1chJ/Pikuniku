@@ -23,16 +23,31 @@ const KEYS = {
   cards: "pikuniku.cards.v1",
   progress: "pikuniku.progress.v1",
   log: "pikuniku.log.v1",
+  settings: "pikuniku.settings.v1",
 };
+
+export interface Settings {
+  /** Speak the reading automatically when an answer comes back correct. */
+  autoplay: boolean;
+}
+
+const DEFAULT_SETTINGS: Settings = { autoplay: true };
 
 export interface Snapshot {
   ready: boolean;
   cards: Card[];
   progress: Record<string, Progress>;
   log: ReviewLogEntry[];
+  settings: Settings;
 }
 
-const EMPTY: Snapshot = { ready: false, cards: [], progress: {}, log: [] };
+const EMPTY: Snapshot = {
+  ready: false,
+  cards: [],
+  progress: {},
+  log: [],
+  settings: DEFAULT_SETTINGS,
+};
 
 let snapshot: Snapshot = EMPTY;
 const listeners = new Set<() => void>();
@@ -74,6 +89,9 @@ function load() {
     cards,
     progress: read<Record<string, Progress>>(KEYS.progress, {}),
     log: read<ReviewLogEntry[]>(KEYS.log, []),
+    // Spread over the defaults so a setting added later doesn't come back
+    // undefined for anyone with existing storage.
+    settings: { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(KEYS.settings, {}) },
   };
 }
 
@@ -128,6 +146,12 @@ export function recordAnswer(
   set({ progress, log });
 }
 
+export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+  const settings = { ...snapshot.settings, [key]: value };
+  write(KEYS.settings, settings);
+  set({ settings });
+}
+
 export function resetAll() {
   const cards = seedCards();
   write(KEYS.cards, cards);
@@ -140,12 +164,13 @@ export interface Store extends Snapshot {
   addCard: typeof addCard;
   deleteCard: typeof deleteCard;
   recordAnswer: typeof recordAnswer;
+  setSetting: typeof setSetting;
   resetAll: typeof resetAll;
 }
 
 export function useStore(): Store {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return { ...snap, addCard, deleteCard, recordAnswer, resetAll };
+  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, resetAll };
 }
 
 /** Tasks a card actually has: reading is skipped when the card has no readings. */

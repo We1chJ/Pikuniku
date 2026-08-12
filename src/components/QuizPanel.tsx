@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { bind, isKatakana, unbind } from "wanakana";
 import { grade, type GradeOutcome } from "@/lib/grader";
 import PronounceButton from "./PronounceButton";
+import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
 import type { Card, TaskKind } from "@/lib/types";
 
 export const TYPE_BG: Record<Card["type"], string> = {
@@ -26,6 +27,7 @@ export default function QuizPanel({
   deck,
   onResolved,
   progressLabel,
+  autoplay = false,
 }: {
   card: Card;
   task: TaskKind;
@@ -33,7 +35,10 @@ export default function QuizPanel({
   /** Fires once per *scorable* answer, after the user dismisses the feedback. */
   onResolved: (outcome: GradeOutcome, input: string, elapsedMs: number) => void;
   progressLabel?: string;
+  /** Speak the reading automatically when the answer comes back correct. */
+  autoplay?: boolean;
 }) {
+  const voice = useJapaneseVoice();
   const inputRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef<number>(0);
@@ -109,6 +114,15 @@ export default function QuizPanel({
   useEffect(() => {
     inputRef.current?.focus({ preventScroll: true });
   }, [phase]);
+
+  // Speak on a correct answer only. A wrong answer is the wrong moment: you're
+  // reading the correction, not absorbing pronunciation, and hearing the word
+  // you just missed announced at you is more irritating than useful.
+  useEffect(() => {
+    if (!autoplay || phase.state !== "revealed") return;
+    const correct = phase.outcome.kind === "precise" || phase.outcome.kind === "imprecise";
+    if (correct) speak(pronounceable(card), voice);
+  }, [autoplay, phase, card, voice]);
 
   // The input should never lose the keyboard. If focus drifts — a stray click on
   // the background, a tab-away and back — the next keystroke pulls it back, and

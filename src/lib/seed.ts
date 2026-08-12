@@ -83,4 +83,14 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     altReadings: [],
     mnemonic: "A fire mountain is a volcano.",
   },
+  {
+    front: "珈琲",
+    type: "compound",
+    meanings: ["coffee"],
+    blacklist: [],
+    readings: ["コーヒー"],
+    altReadings: [],
+    mnemonic:
+      "A loanword, so it's written in katakana even though the kanji spelling exists. Type 'ko-hi-' and watch the box switch to katakana.",
+  },
 ];

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { bind, unbind } from "wanakana";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { bind, isKatakana, unbind } from "wanakana";
 import { grade, type GradeOutcome } from "@/lib/grader";
 import type { Card, TaskKind } from "@/lib/types";
 
@@ -38,6 +38,14 @@ export default function QuizPanel({
   const [phase, setPhase] = useState<Phase>({ state: "input" });
   const [retry, setRetry] = useState<{ hint: string; nonce: number } | null>(null);
 
+  // Meanings stay English; only readings get transliterated — the same split
+  // WaniKani makes. A card whose readings are all katakana (loanwords, onomatopoeia)
+  // should produce katakana as you type, not hiragana.
+  const imeMode: "toKatakana" | true =
+    card.readings.length > 0 && card.readings.every((r) => isKatakana(r))
+      ? "toKatakana"
+      : true;
+
   // Callers remount this component per question (via `key`), so mount *is* "new
   // question": focus, start the response timer, and — for readings — attach the
   // inline IME that turns romaji into kana as you type. That library is
@@ -45,11 +53,9 @@ export default function QuizPanel({
   useEffect(() => {
     const el = inputRef.current;
     startedAt.current = Date.now();
-    // preventScroll matters: this panel is also embedded partway down the landing
-    // page, and a plain focus() would yank the visitor to it on load.
     el?.focus({ preventScroll: true });
     if (!el || task !== "reading") return;
-    bind(el, { IMEMode: true });
+    bind(el, { IMEMode: imeMode });
     return () => {
       try {
         unbind(el);
@@ -57,9 +63,9 @@ export default function QuizPanel({
         /* already unbound */
       }
     };
-  }, [task]);
+  }, [task, imeMode]);
 
-  function submit() {
+  const submit = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
 
@@ -72,11 +78,39 @@ export default function QuizPanel({
     if (outcome.kind === "retry") {
       // Not an attempt. Shake, hint, let them try again — no penalty, no log.
       setRetry({ hint: outcome.hint, nonce: Date.now() });
-      el.focus();
+      el.focus({ preventScroll: true });
       return;
     }
     setPhase({ state: "revealed", outcome });
-  }
+  }, [phase, card, task, deck, onResolved]);
+
+  // The input should never lose the keyboard. If focus drifts — a stray click on
+  // the background, a tab-away and back — the next keystroke pulls it back, and
+  // Enter still advances. Typing should always just work.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const refocus = () => el.focus({ preventScroll: true });
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement === el) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return; // leave browser shortcuts alone
+      if (e.key === "Enter") {
+        e.preventDefault();
+        refocus();
+        submit();
+      } else if (e.key.length === 1 || e.key === "Backspace") {
+        refocus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("focus", refocus);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("focus", refocus);
+    };
+  }, [submit]);
 
   const revealed = phase.state === "revealed" ? phase.outcome : null;
   const correct = revealed?.kind === "precise" || revealed?.kind === "imprecise";
@@ -163,6 +197,10 @@ export default function QuizPanel({
             )}
             <button
               onClick={submit}
+              tabIndex={-1}
+              // Clicking must not pull focus off the input, or the next question
+              // would start with the keyboard pointed at a button.
+              onMouseDown={(e) => e.preventDefault()}
               className="mt-4 w-full rounded-lg bg-foreground py-2.5 text-sm font-semibold text-background"
             >
               Continue <span className="opacity-60">(Enter)</span>
@@ -171,7 +209,9 @@ export default function QuizPanel({
         )}
 
         <p className="mt-4 text-center text-xs text-muted">
-          Press Enter to answer. Typos are forgiven; wrong kana is not.
+          {task === "reading"
+            ? `Press Enter to answer. Romaji becomes ${imeMode === "toKatakana" ? "katakana" : "kana"} as you type.`
+            : "Press Enter to answer. Typos are forgiven."}
         </p>
       </div>
     </div>

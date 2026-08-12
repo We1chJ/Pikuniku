@@ -147,9 +147,18 @@ export default function QuizPanel({
       const active = document.activeElement;
       if (active === el) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // leave browser shortcuts alone
-      // Someone who has tabbed to a link or button means to activate it — don't
-      // snatch their Enter to submit an answer.
-      if (active instanceof HTMLElement && (active.tagName === "A" || active.tagName === "BUTTON")) {
+      // Only reclaim focus from nothing in particular. If the user is in another
+      // field, or has tabbed to a link or button, they mean to be there —
+      // dragging the caret back here would hijack what they're typing.
+      if (
+        active instanceof HTMLElement &&
+        (active.tagName === "A" ||
+          active.tagName === "BUTTON" ||
+          active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.tagName === "SELECT" ||
+          active.isContentEditable)
+      ) {
         return;
       }
       if (e.key === "Enter") {

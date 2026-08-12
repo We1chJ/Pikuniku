@@ -1,6 +1,5 @@
 "use client";
 
-import DemoQuiz from "./DemoQuiz";
 import SignInForm from "./SignInForm";
 
 const LADDER = [
@@ -97,17 +96,6 @@ export default function Landing() {
               </li>
             ))}
           </ol>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-4 py-20">
-        <h2 className="text-3xl font-bold tracking-tight">Try a review</h2>
-        <p className="mt-3 text-muted">
-          This is the real review screen and the real grader. Answer in English for a
-          meaning, or type romaji for a reading and watch it become kana.
-        </p>
-        <div className="mt-8">
-          <DemoQuiz />
         </div>
       </section>
 

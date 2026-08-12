@@ -2,9 +2,9 @@ import type { Card } from "./types";
 
 /**
  * Demo deck. Deliberately includes the awkward cases the grader exists for:
- * an alternate reading (人), a blacklisted near-miss (上), a transitive verb
- * whose answer encodes its grammar (上げる), and two cards that share the
- * English meaning "person" so alternate-matching has something to catch.
+ * single kanji with competing on'yomi and kun'yomi readings (人, 大, 上, 山), a
+ * blacklisted near-miss (人), a transitive verb whose answer encodes its grammar
+ * (上げる), an irregular compound (大人), and a katakana loanword (珈琲).
  */
 export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
   {
@@ -13,7 +13,8 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["one", "ground"],
     blacklist: [],
     readings: ["いち"],
-    altReadings: ["ひと"],
+    readingType: "onyomi",
+    altReadings: [{ reading: "ひと", type: "kunyomi" }],
     mnemonic: "A single horizontal line lying on the ground. One.",
   },
   {
@@ -22,7 +23,11 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["person"],
     blacklist: ["people"],
     readings: ["じん"],
-    altReadings: ["にん", "ひと"],
+    readingType: "onyomi",
+    altReadings: [
+      { reading: "にん", type: "onyomi" },
+      { reading: "ひと", type: "kunyomi" },
+    ],
     mnemonic: "Two legs walking — a person. The on'yomi here is じん.",
     notes: "'people' is blacklisted: it's the plural, and we want the singular.",
   },
@@ -32,7 +37,11 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["big", "large"],
     blacklist: ["great"],
     readings: ["たい"],
-    altReadings: ["だい", "おお"],
+    readingType: "onyomi",
+    altReadings: [
+      { reading: "だい", type: "onyomi" },
+      { reading: "おお", type: "kunyomi" },
+    ],
     mnemonic: "A person stretching their arms as wide as they go. Big.",
   },
   {
@@ -41,7 +50,7 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["adult"],
     blacklist: ["big person"],
     readings: ["おとな"],
-    altReadings: ["だいじん"],
+    altReadings: [{ reading: "だいじん", type: "onyomi" }],
     mnemonic: "A big person is an adult. The reading is irregular: おとな.",
   },
   {
@@ -50,7 +59,11 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["above", "up"],
     blacklist: ["over"],
     readings: ["じょう"],
-    altReadings: ["うえ", "あ"],
+    readingType: "onyomi",
+    altReadings: [
+      { reading: "うえ", type: "kunyomi" },
+      { reading: "あ", type: "kunyomi" },
+    ],
     mnemonic: "A line sitting above the ground. Above.",
   },
   {
@@ -71,7 +84,8 @@ export const SEED_CARDS: Omit<Card, "id" | "createdAt">[] = [
     meanings: ["mountain"],
     blacklist: [],
     readings: ["さん"],
-    altReadings: ["やま"],
+    readingType: "onyomi",
+    altReadings: [{ reading: "やま", type: "kunyomi" }],
     mnemonic: "Three peaks rising from the ground. A mountain.",
   },
   {

@@ -5,7 +5,12 @@ import Nav from "@/components/Nav";
 import PronounceButton from "@/components/PronounceButton";
 import { useStore, tasksFor } from "@/lib/store";
 import { TYPE_LABEL } from "@/components/QuizPanel";
-import type { CardType } from "@/lib/types";
+import {
+  READING_TYPE_LABEL,
+  type AltReading,
+  type CardType,
+  type ReadingType,
+} from "@/lib/types";
 
 const TYPES: CardType[] = ["component", "primary", "compound"];
 const TYPE_DOT: Record<CardType, string> = {
@@ -17,6 +22,7 @@ const TYPE_DOT: Record<CardType, string> = {
 const empty = {
   front: "",
   type: "primary" as CardType,
+  readingType: "" as "" | ReadingType,
   meanings: "",
   blacklist: "",
   readings: "",
@@ -29,6 +35,22 @@ function split(s: string): string[] {
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
+}
+
+/**
+ * Alternate readings accept an optional type in brackets — "にん (on), ひと (kun)"
+ * — which is what lets a wrong-type answer be told which kind it gave.
+ */
+function splitAltReadings(s: string): AltReading[] {
+  return split(s).map((entry) => {
+    const m = entry.match(/^(.+?)\s*[（(]\s*(on|kun|nanori)[a-z']*\s*[)）]$/i);
+    if (!m) return { reading: entry };
+    const kind = m[2].toLowerCase();
+    return {
+      reading: m[1].trim(),
+      type: kind === "on" ? "onyomi" : kind === "kun" ? "kunyomi" : "nanori",
+    };
+  });
 }
 
 export default function Cards() {
@@ -45,7 +67,8 @@ export default function Cards() {
       meanings: split(form.meanings),
       blacklist: split(form.blacklist),
       readings: split(form.readings),
-      altReadings: split(form.altReadings),
+      readingType: form.readingType || undefined,
+      altReadings: splitAltReadings(form.altReadings),
       mnemonic: form.mnemonic.trim() || undefined,
     });
     setForm(empty);
@@ -92,7 +115,7 @@ export default function Cards() {
             {[
               { key: "meanings", label: "Meanings", hint: "comma separated; first is primary", ph: "cat" },
               { key: "readings", label: "Readings (kana)", hint: "leave empty to skip the reading question", ph: "ねこ" },
-              { key: "altReadings", label: "Other readings", hint: "real, but not what we're testing → retry", ph: "びょう" },
+              { key: "altReadings", label: "Other readings", hint: "real, but not what we're testing → retry. Add a type in brackets: にん (on), ひと (kun)", ph: "にん (on), ひと (kun)" },
               { key: "blacklist", label: "Blacklist", hint: "rejected even if it nearly matches", ph: "kitten" },
             ].map((f) => (
               <div key={f.key}>
@@ -104,6 +127,26 @@ export default function Cards() {
                   className={`${f.key.includes("eading") ? "jp" : ""} mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary`}
                 />
                 <p className="mt-1 text-[11px] text-muted">{f.hint}</p>
+
+                {/* Sits with the readings, because it describes them: it's what
+                    the prompt shows so you never have to guess which one we want. */}
+                {f.key === "readings" && (
+                  <div className="mt-2 flex gap-1.5">
+                    {(["", "onyomi", "kunyomi", "nanori"] as const).map((t) => (
+                      <button
+                        key={t || "none"}
+                        onClick={() => setForm({ ...form, readingType: t })}
+                        className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold transition-colors ${
+                          form.readingType === t
+                            ? "border-foreground"
+                            : "border-border text-muted"
+                        }`}
+                      >
+                        {t ? READING_TYPE_LABEL[t] : "unset"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -140,10 +183,16 @@ export default function Cards() {
                           <div className="mt-0.5 flex items-center gap-2">
                             <p className="jp text-sm text-muted">
                               {c.readings.join("、")}
+                              {c.readingType && (
+                                <span className="opacity-60">
+                                  {" "}
+                                  ({READING_TYPE_LABEL[c.readingType]})
+                                </span>
+                              )}
                               {c.altReadings.length > 0 && (
                                 <span className="opacity-60">
                                   {" "}
-                                  · also {c.altReadings.join("、")}
+                                  · also {c.altReadings.map((a) => a.reading).join("、")}
                                 </span>
                               )}
                             </p>

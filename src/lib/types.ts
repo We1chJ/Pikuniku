@@ -13,6 +13,25 @@ export type CardType = "component" | "primary" | "compound";
 /** The two question directions we ship in v1. Both are recognition (§6.3). */
 export type TaskKind = "meaning" | "reading";
 
+export type ReadingType = "onyomi" | "kunyomi" | "nanori";
+
+export const READING_TYPE_LABEL: Record<ReadingType, string> = {
+  onyomi: "on'yomi",
+  kunyomi: "kun'yomi",
+  nanori: "nanori",
+};
+
+/**
+ * A reading that's real but isn't the one this card is testing.
+ *
+ * Typed, so a wrong-type answer can be told *why* it's wrong ("that's the
+ * kun'yomi — we want the on'yomi") instead of just being rebuffed.
+ */
+export interface AltReading {
+  reading: string;
+  type?: ReadingType;
+}
+
 export interface Card {
   id: string;
   /** The prompt shown in the review screen, e.g. 猫 */
@@ -24,8 +43,15 @@ export interface Card {
   blacklist: string[];
   /** Accepted readings, in kana. Empty means this card has no reading task. */
   readings: string[];
+  /**
+   * Which kind of reading `readings` holds, when that's a meaningful question.
+   * Shown in the prompt so you're never left guessing whether we want じん or
+   * ひと. Undefined for compounds, where the word has exactly one reading and
+   * there is nothing to disambiguate.
+   */
+  readingType?: ReadingType;
   /** Real readings that aren't the one being taught → retry, not wrong (§1.6). */
-  altReadings: string[];
+  altReadings: AltReading[];
   mnemonic?: string;
   notes?: string;
   createdAt: number;

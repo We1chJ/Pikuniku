@@ -77,9 +77,23 @@ function seedCards(): Card[] {
   return SEED_CARDS.map((c) => ({ ...c, id: newId(), createdAt: Date.now() }));
 }
 
+/**
+ * altReadings used to be a plain string[]; it now carries an optional reading
+ * type. Widen anything stored under the old shape rather than making the user
+ * rebuild their deck.
+ */
+function migrate(cards: Card[]): Card[] {
+  return cards.map((c) => ({
+    ...c,
+    altReadings: (c.altReadings ?? []).map((a) =>
+      typeof a === "string" ? { reading: a as string } : a,
+    ),
+  }));
+}
+
 function load() {
   if (snapshot.ready || typeof window === "undefined") return;
-  let cards = read<Card[]>(KEYS.cards, []);
+  let cards = migrate(read<Card[]>(KEYS.cards, []));
   if (cards.length === 0) {
     cards = seedCards();
     write(KEYS.cards, cards);

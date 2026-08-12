@@ -10,7 +10,7 @@
  */
 
 import { isJapanese, isRomaji, toHiragana } from "wanakana";
-import type { Card, TaskKind } from "./types";
+import { READING_TYPE_LABEL, type AltReading, type Card, type TaskKind } from "./types";
 
 export type RetryReason =
   | "empty"
@@ -132,6 +132,18 @@ function gradeMeaning(input: string, card: Card, deck: Card[]): GradeOutcome {
   return { kind: "wrong" };
 }
 
+/**
+ * Name what was given and what was wanted, as specifically as the card allows.
+ * Never reveals the answer — it names the *kind* of reading, not the reading.
+ */
+function otherReadingHint(card: Card, alt: AltReading): string {
+  const want = card.readingType ? READING_TYPE_LABEL[card.readingType] : null;
+  const got = alt.type ? READING_TYPE_LABEL[alt.type] : null;
+  if (got && want) return `That's the ${got} — we want the ${want}.`;
+  if (want) return `That's a real reading, but we want the ${want} here.`;
+  return "That's a real reading, but not the one we want here.";
+}
+
 function gradeReading(input: string, card: Card): GradeOutcome {
   const raw = input.trim();
   if (!raw) return { kind: "retry", reason: "empty", hint: "Type an answer." };
@@ -152,12 +164,9 @@ function gradeReading(input: string, card: Card): GradeOutcome {
   }
 
   // A real reading, just not the one being taught → retry, never wrong.
-  if (card.altReadings.map(normalizeReading).includes(answer)) {
-    return {
-      kind: "retry",
-      reason: "other-reading",
-      hint: "That's a real reading, but not the one we want here.",
-    };
+  const alt = card.altReadings.find((a) => normalizeReading(a.reading) === answer);
+  if (alt) {
+    return { kind: "retry", reason: "other-reading", hint: otherReadingHint(card, alt) };
   }
 
   // Readings are exact-match only. No fuzzy tolerance: a wrong kana is a wrong

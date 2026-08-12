@@ -5,7 +5,7 @@ import { bind, isKatakana, unbind } from "wanakana";
 import { grade, type GradeOutcome } from "@/lib/grader";
 import PronounceButton from "./PronounceButton";
 import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
-import type { Card, TaskKind } from "@/lib/types";
+import { READING_TYPE_LABEL, type Card, type TaskKind } from "@/lib/types";
 
 export const TYPE_BG: Record<Card["type"], string> = {
   component: "bg-component",
@@ -20,6 +20,16 @@ export const TYPE_LABEL: Record<Card["type"], string> = {
 };
 
 type Phase = { state: "input" } | { state: "revealed"; outcome: GradeOutcome };
+
+/**
+ * A bare "Reading" is ambiguous the moment a character has both an on'yomi and a
+ * kun'yomi — you'd be guessing which one we want. Name it when the card knows.
+ */
+function readingPrompt(card: Card): string {
+  return card.readingType
+    ? `${READING_TYPE_LABEL[card.readingType]} reading`
+    : "Reading";
+}
 
 export default function QuizPanel({
   card,
@@ -181,7 +191,7 @@ export default function QuizPanel({
           {card.front}
         </p>
         <p className="mt-6 text-xs font-semibold tracking-[0.2em] uppercase opacity-80">
-          {TYPE_LABEL[card.type]} · {task === "meaning" ? "Meaning" : "Reading"}
+          {TYPE_LABEL[card.type]} · {task === "meaning" ? "Meaning" : readingPrompt(card)}
         </p>
       </div>
 
@@ -231,7 +241,9 @@ export default function QuizPanel({
               </div>
               {card.readings.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <dt className="w-20 shrink-0 text-muted">Reading</dt>
+                  <dt className="w-20 shrink-0 text-muted">
+                    {card.readingType ? READING_TYPE_LABEL[card.readingType] : "Reading"}
+                  </dt>
                   <dd className="jp flex items-center gap-2 font-medium">
                     {card.readings.join("、")}
                     <PronounceButton card={card} />

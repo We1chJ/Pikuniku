@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Nav from "@/components/Nav";
-import SignIn from "@/components/SignIn";
+import Landing from "@/components/Landing";
 import { useStore, tasksFor } from "@/lib/store";
 import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib/scheduler";
 
@@ -34,7 +34,8 @@ export default function Dashboard() {
     );
   }
 
-  if (!signedIn) return <SignIn />;
+  // Signed out, this is the front door; signed in, it's the dashboard.
+  if (!signedIn) return <Landing />;
 
   const now = new Date();
   const questions = cards.flatMap((c) =>

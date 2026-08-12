@@ -1,36 +1,158 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+<img src="docs/logo-color.png" alt="" width="120">
 
-First, run the development server:
+# Pikuniku
+
+**WaniKani's method. Your flashcards.**
+
+A spaced-repetition trainer that borrows the machinery which makes
+[WaniKani](https://www.wanikani.com) effective — the drilling, the forgiving grader, the
+five stages — and points it at material you write yourself.
+
+</div>
+
+---
+
+## Why
+
+WaniKani works, but it teaches *its* curriculum. Anki lets you write your own cards, but
+hands you a blank flashcard and a self-grade button. Pikuniku is the middle: you supply the
+words, and it supplies the pedagogy.
+
+The research behind it — how WaniKani's SRS ladder, unlocking model, session queue and
+answer grading actually work, with sources — is written up in
+[`WANIKANI-RESEARCH-AND-PLAN.md`](WANIKANI-RESEARCH-AND-PLAN.md).
+
+<div align="center">
+<img src="docs/landing.jpg" alt="Landing page" width="800">
+</div>
+
+## How it works
+
+### You type the answer
+
+No multiple choice and no self-grading. Recall is the exercise, so you produce the answer
+before the app shows you anything.
+
+<div align="center">
+<img src="docs/review.jpg" alt="A review, answered correctly" width="800">
+</div>
+
+### Typos are forgiven; wrong answers are not
+
+Meanings are matched with an Optimal String Alignment distance whose tolerance scales with
+the length of the expected answer — 0 edits under 4 characters, rising to `2 + ⌊L/7⌋` past
+8. Readings are matched **exactly**, because a wrong kana is a wrong sound.
+
+### There is a third answer state
+
+Right, wrong, and *"that isn't what was asked"*. Typing English where kana belongs, or a
+real reading that isn't the one being taught, shakes the box with a hint and costs you
+nothing. Only genuine mistakes reach the scheduler.
+
+<div align="center">
+<img src="docs/shake.png" alt="The shake state naming which reading was wanted" width="560">
+</div>
+
+Reading prompts name which reading they want, so you are never guessing between 人's じん
+and ひと — a bare "Reading" label is ambiguous the moment a character has both.
+
+### Scheduling adapts, but keeps the ceremony
+
+WaniKani's ladder is fixed for everyone. Pikuniku runs [FSRS](https://github.com/open-spaced-repetition/ts-fsrs)
+underneath, so intervals fit the card and your history — but you are never asked to rate
+your own recall. The grader's verdict becomes the rating:
+
+| Grader result | FSRS rating |
+|---|---|
+| exact, answered fast | Easy |
+| exact | Good |
+| fuzzy match (a typo) | Hard |
+| wrong | Again |
+
+Apprentice → Guru → Master → Enlightened → Burned survive as a display layer derived from
+stability, because "Burned" motivates and `stability = 47.3 days` does not.
+
+<div align="center">
+<img src="docs/dashboard.jpg" alt="Dashboard" width="800">
+</div>
+
+### Missed questions can't come straight back
+
+WaniKani will re-ask a question you just missed almost immediately, which tests working
+memory rather than recall. Here a wrong answer sets a delay that is honoured as long as any
+other question is available, and degrades gracefully at the end of a session.
+
+### Leeches point at the card, not at you
+
+In a deck you wrote yourself, an item you keep failing is usually an ambiguous answer, a
+missing synonym, or two cards that should have been one. Cards failed repeatedly are
+surfaced for editing — a fix a fixed-curriculum app cannot offer.
+
+## Features
+
+- **Two-field card entry.** Paste `猫(ねこ)` and the reading is split out for you; the card
+  type is inferred; the reading field only appears when the word actually hides one.
+- **Kana input.** Romaji becomes kana as you type, via WaniKani's own
+  [WanaKana](https://github.com/WaniKani/WanaKana). Katakana cards switch automatically.
+- **Pronunciation** through the browser's speech synthesis — no audio files, and it speaks
+  the *reading*, since synthesisers guess kanji and get 大人 wrong.
+- **English → Japanese** production questions, optional. A word that legitimately fits the
+  prompt but belongs to another card is a retry, not a mistake.
+- **Sync** across devices via Supabase, with row-level security and magic-link sign-in.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without Supabase configured it runs entirely on `localStorage`, seeded with a small demo
+deck — enough to try the review loop.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### With Supabase
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) in the SQL
+   editor. It creates three tables, enables RLS on all of them, and grants the review log
+   `select` and `insert` only — it is append-only by policy, not by convention.
+3. Add your keys to `.env.local`:
 
-## Learn More
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. Add your dev URL to **Authentication → URL Configuration → Redirect URLs**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploying
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Every route is static and Supabase is called from the browser, so it deploys as plain files.
+Pushing to `main` builds and publishes to GitHub Pages via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml); enable **Settings → Pages →
+Source: GitHub Actions** once, and add the production URL to Supabase's redirect list.
 
-## Deploy on Vercel
+## Layout
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/lib/
+  grader.ts      answer checking — distance, normalisation, the three states
+  scheduler.ts   FSRS wrapper; grader verdict → rating; stage labels
+  session.ts     in-session queue, re-queue delay, half-finished cap
+  cardinfer.ts   what can be worked out from a word and its meaning
+  store.ts       one interface over Supabase and localStorage
+  remote.ts      row ↔ domain mapping
+supabase/migrations/
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Credits
+
+Built on ideas from [WaniKani](https://www.wanikani.com) by Tofugu, with
+[WanaKana](https://github.com/WaniKani/WanaKana) and
+[ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs). The session queue design
+follows [KanjiSchool](https://github.com/Lemmmy/KanjiSchool); the grading constants were
+confirmed against [Tsurukame](https://github.com/davidsansome/tsurukame).
+
+Independent project — not affiliated with WaniKani or Tofugu.

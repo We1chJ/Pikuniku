@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { bind, unbind } from "wanakana";
 import Nav from "@/components/Nav";
 import PronounceButton from "@/components/PronounceButton";
 import { useStore, tasksFor } from "@/lib/store";
 import { TYPE_LABEL } from "@/components/QuizPanel";
+import {
+  describeCard,
+  inferCardType,
+  inferReadings,
+  needsReading,
+  splitFuriganaNotation,
+} from "@/lib/cardinfer";
 import {
   READING_TYPE_LABEL,
   type AltReading,
@@ -21,12 +29,13 @@ const TYPE_DOT: Record<CardType, string> = {
 
 const empty = {
   front: "",
-  type: "primary" as CardType,
+  meaning: "",
+  reading: "",
+  // Everything below is optional and lives behind "More options".
+  type: "" as "" | CardType,
   readingType: "" as "" | ReadingType,
-  meanings: "",
-  blacklist: "",
-  readings: "",
   altReadings: "",
+  blacklist: "",
   mnemonic: "",
 };
 
@@ -37,10 +46,7 @@ function split(s: string): string[] {
     .filter(Boolean);
 }
 
-/**
- * Alternate readings accept an optional type in brackets — "にん (on), ひと (kun)"
- * — which is what lets a wrong-type answer be told which kind it gave.
- */
+/** "にん (on), ひと (kun)" — the bracketed type is what sharpens the shake hint. */
 function splitAltReadings(s: string): AltReading[] {
   return split(s).map((entry) => {
     const m = entry.match(/^(.+?)\s*[（(]\s*(on|kun|nanori)[a-z']*\s*[)）]$/i);
@@ -56,22 +62,31 @@ function splitAltReadings(s: string): AltReading[] {
 export default function Cards() {
   const { ready, cards, addCard, deleteCard } = useStore();
   const [form, setForm] = useState(empty);
+  const frontRef = useRef<HTMLInputElement>(null);
+  const readingRef = useRef<HTMLInputElement>(null);
 
-  const canSave = form.front.trim() !== "" && split(form.meanings).length > 0;
+  // A pasted 猫(ねこ) is split as you type, so the reading lands in its own field.
+  const parsed = splitFuriganaNotation(form.front);
+  const front = parsed.front;
+  const reading = form.reading || parsed.reading || "";
+  const readings = inferReadings(front, reading);
+  const showReading = needsReading(front);
+  const canSave = front !== "" && split(form.meaning).length > 0;
 
   function save() {
     if (!canSave) return;
     addCard({
-      front: form.front.trim(),
-      type: form.type,
-      meanings: split(form.meanings),
+      front,
+      type: form.type || inferCardType(front),
+      meanings: split(form.meaning),
       blacklist: split(form.blacklist),
-      readings: split(form.readings),
+      readings,
       readingType: form.readingType || undefined,
       altReadings: splitAltReadings(form.altReadings),
       mnemonic: form.mnemonic.trim() || undefined,
     });
     setForm(empty);
+    frontRef.current?.focus();
   }
 
   return (
@@ -80,92 +95,177 @@ export default function Cards() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
         <h1 className="text-3xl font-bold tracking-tight">Your cards</h1>
         <p className="mt-2 max-w-2xl text-muted">
-          Everything the grader knows comes from these fields. Alternate meanings make it
-          forgiving; blacklisted answers make it strict where it matters.
+          Type the word and what it means. Everything else is worked out for you, or
+          optional.
         </p>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[22rem_1fr]">
+        <div className="mt-8 grid gap-8 lg:grid-cols-[24rem_1fr]">
           <div className="rounded-2xl border border-border bg-surface p-5">
-            <h2 className="text-sm font-bold tracking-wide uppercase">New card</h2>
-
-            <label className="mt-4 block text-xs font-semibold text-muted">Front</label>
+            <label className="block text-xs font-semibold text-muted">Japanese</label>
             <input
+              ref={frontRef}
+              autoFocus
               value={form.front}
               onChange={(e) => setForm({ ...form, front: e.target.value })}
-              placeholder="猫"
-              className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-xl outline-none focus:border-primary"
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder="猫 or 猫(ねこ)"
+              className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-2xl outline-none focus:border-primary"
             />
 
-            <label className="mt-4 block text-xs font-semibold text-muted">Type</label>
-            <div className="mt-1 flex gap-2">
-              {TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setForm({ ...form, type: t })}
-                  className={`flex-1 rounded-lg border px-2 py-2 text-xs font-semibold transition-colors ${
-                    form.type === t ? "border-foreground" : "border-border text-muted"
-                  }`}
-                >
-                  <span className={`${TYPE_DOT[t]} mr-1.5 inline-block h-2 w-2 rounded-full`} />
-                  {TYPE_LABEL[t]}
-                </button>
-              ))}
-            </div>
+            <label className="mt-4 block text-xs font-semibold text-muted">Meaning</label>
+            <input
+              value={form.meaning}
+              onChange={(e) => setForm({ ...form, meaning: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && save()}
+              placeholder="cat"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
+            />
+            <p className="mt-1 text-[11px] text-muted">
+              Separate alternatives with commas — any of them will be accepted.
+            </p>
 
-            {[
-              { key: "meanings", label: "Meanings", hint: "comma separated; first is primary", ph: "cat" },
-              { key: "readings", label: "Readings (kana)", hint: "leave empty to skip the reading question", ph: "ねこ" },
-              { key: "altReadings", label: "Other readings", hint: "real, but not what we're testing → retry. Add a type in brackets: にん (on), ひと (kun)", ph: "にん (on), ひと (kun)" },
-              { key: "blacklist", label: "Blacklist", hint: "rejected even if it nearly matches", ph: "kitten" },
-            ].map((f) => (
-              <div key={f.key}>
-                <label className="mt-4 block text-xs font-semibold text-muted">{f.label}</label>
+            {/* Only asked for when the word actually hides one. */}
+            {showReading && (
+              <>
+                <label className="mt-4 block text-xs font-semibold text-muted">
+                  Reading <span className="font-normal">(optional)</span>
+                </label>
                 <input
-                  value={form[f.key as keyof typeof form] as string}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                  placeholder={f.ph}
-                  className={`${f.key.includes("eading") ? "jp" : ""} mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary`}
+                  ref={readingRef}
+                  value={reading}
+                  onChange={(e) => setForm({ ...form, reading: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && save()}
+                  onFocus={(e) => bind(e.currentTarget, { IMEMode: true })}
+                  onBlur={(e) => {
+                    try {
+                      unbind(e.currentTarget);
+                    } catch {
+                      /* already unbound */
+                    }
+                  }}
+                  placeholder="ねこ — romaji becomes kana"
+                  className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
                 />
-                <p className="mt-1 text-[11px] text-muted">{f.hint}</p>
+                <p className="mt-1 text-[11px] text-muted">
+                  Leave blank to be quizzed on the meaning only.
+                </p>
+              </>
+            )}
 
-                {/* Sits with the readings, because it describes them: it's what
-                    the prompt shows so you never have to guess which one we want. */}
-                {f.key === "readings" && (
-                  <div className="mt-2 flex gap-1.5">
-                    {(["", "onyomi", "kunyomi", "nanori"] as const).map((t) => (
-                      <button
-                        key={t || "none"}
-                        onClick={() => setForm({ ...form, readingType: t })}
-                        className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold transition-colors ${
-                          form.readingType === t
-                            ? "border-foreground"
-                            : "border-border text-muted"
-                        }`}
-                      >
-                        {t ? READING_TYPE_LABEL[t] : "unset"}
-                      </button>
-                    ))}
-                  </div>
+            <details className="group mt-5">
+              <summary className="cursor-pointer list-none text-xs font-semibold text-muted hover:text-foreground">
+                <span className="inline-block transition-transform group-open:rotate-90">
+                  ▸
+                </span>{" "}
+                More options
+              </summary>
+
+              <div className="mt-3 border-t border-border pt-3">
+                <label className="block text-xs font-semibold text-muted">Type</label>
+                <div className="mt-1 flex gap-1.5">
+                  <button
+                    onClick={() => setForm({ ...form, type: "" })}
+                    className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold transition-colors ${
+                      form.type === "" ? "border-foreground" : "border-border text-muted"
+                    }`}
+                  >
+                    auto
+                  </button>
+                  {TYPES.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setForm({ ...form, type: t })}
+                      className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold transition-colors ${
+                        form.type === t ? "border-foreground" : "border-border text-muted"
+                      }`}
+                    >
+                      <span
+                        className={`${TYPE_DOT[t]} mr-1 inline-block h-1.5 w-1.5 rounded-full`}
+                      />
+                      {TYPE_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+
+                {showReading && (
+                  <>
+                    <label className="mt-4 block text-xs font-semibold text-muted">
+                      Reading type
+                    </label>
+                    <div className="mt-1 flex gap-1.5">
+                      {(["", "onyomi", "kunyomi", "nanori"] as const).map((t) => (
+                        <button
+                          key={t || "none"}
+                          onClick={() => setForm({ ...form, readingType: t })}
+                          className={`flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold transition-colors ${
+                            form.readingType === t
+                              ? "border-foreground"
+                              : "border-border text-muted"
+                          }`}
+                        >
+                          {t ? READING_TYPE_LABEL[t] : "unset"}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted">
+                      Named in the prompt, so you know which reading is wanted.
+                    </p>
+                  </>
                 )}
-              </div>
-            ))}
 
-            <label className="mt-4 block text-xs font-semibold text-muted">Mnemonic</label>
-            <textarea
-              value={form.mnemonic}
-              onChange={(e) => setForm({ ...form, mnemonic: e.target.value })}
-              rows={3}
-              placeholder="A story that hooks the meaning and the reading together."
-              className="mt-1 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-            />
+                {[
+                  {
+                    key: "altReadings",
+                    label: "Other readings",
+                    hint: "real, but not what we're testing → retry. Type in brackets: にん (on), ひと (kun)",
+                    ph: "にん (on), ひと (kun)",
+                    jp: true,
+                  },
+                  {
+                    key: "blacklist",
+                    label: "Blacklist",
+                    hint: "rejected even if it nearly matches",
+                    ph: "kitten",
+                    jp: false,
+                  },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <label className="mt-4 block text-xs font-semibold text-muted">
+                      {f.label}
+                    </label>
+                    <input
+                      value={form[f.key as "altReadings" | "blacklist"]}
+                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                      placeholder={f.ph}
+                      className={`${f.jp ? "jp" : ""} mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary`}
+                    />
+                    <p className="mt-1 text-[11px] text-muted">{f.hint}</p>
+                  </div>
+                ))}
+
+                <label className="mt-4 block text-xs font-semibold text-muted">
+                  Mnemonic
+                </label>
+                <textarea
+                  value={form.mnemonic}
+                  onChange={(e) => setForm({ ...form, mnemonic: e.target.value })}
+                  rows={3}
+                  placeholder="A story that hooks the meaning and the reading together."
+                  className="mt-1 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+              </div>
+            </details>
 
             <button
               onClick={save}
               disabled={!canSave}
               className="mt-5 w-full rounded-lg bg-foreground py-2.5 text-sm font-semibold text-background disabled:opacity-40"
             >
-              Add card
+              Add card <span className="opacity-60">(Enter)</span>
             </button>
+            <p className="mt-2 h-4 text-center text-[11px] text-muted">
+              {describeCard(front, readings)}
+            </p>
           </div>
 
           <div>
@@ -204,9 +304,7 @@ export default function Cards() {
                             rejects: {c.blacklist.join(", ")}
                           </p>
                         )}
-                        {c.mnemonic && (
-                          <p className="mt-2 text-sm text-muted">{c.mnemonic}</p>
-                        )}
+                        {c.mnemonic && <p className="mt-2 text-sm text-muted">{c.mnemonic}</p>}
                         <p className="mt-2 text-[11px] text-muted">
                           {tasksFor(c).length} question{tasksFor(c).length > 1 ? "s" : ""} ·{" "}
                           {TYPE_LABEL[c.type]}

@@ -71,6 +71,18 @@ body {
   font-feature-settings: "palt";
 }
 
+/* The logo is a black glyph on transparency, so it disappears on a dark
+   background. Inverting it is enough — there's no colour in it to preserve. */
+.logo-glyph {
+  filter: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .logo-glyph {
+    filter: invert(1);
+  }
+}
+
 /* The shake is the third answer state made visible: it says "try again",
    not "you were wrong", so it must never look like the red failure state. */
 @keyframes shake {

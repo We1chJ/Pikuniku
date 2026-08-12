@@ -1,11 +1,20 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export default function Nav() {
   return (
     <header className="border-b border-border bg-surface">
       <nav className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-        <Link href="/" className="jp text-lg font-bold tracking-tight">
-          ピクニク
+        <Link href="/" className="flex items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={28}
+            height={20}
+            priority
+            className="logo-glyph"
+          />
+          <span className="jp text-lg font-bold tracking-tight">ピクニク</span>
         </Link>
         <div className="flex gap-5 text-sm font-medium">
           <Link href="/" className="hover:text-primary">

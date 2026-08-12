@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bind, isKatakana, unbind } from "wanakana";
 import { grade, type GradeOutcome } from "@/lib/grader";
+import PronounceButton from "./PronounceButton";
 import type { Card, TaskKind } from "@/lib/types";
 
 export const TYPE_BG: Record<Card["type"], string> = {
@@ -190,9 +191,12 @@ export default function QuizPanel({
                 <dd className="font-medium">{card.meanings.join(", ")}</dd>
               </div>
               {card.readings.length > 0 && (
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <dt className="w-20 shrink-0 text-muted">Reading</dt>
-                  <dd className="jp font-medium">{card.readings.join("、")}</dd>
+                  <dd className="jp flex items-center gap-2 font-medium">
+                    {card.readings.join("、")}
+                    <PronounceButton card={card} />
+                  </dd>
                 </div>
               )}
             </dl>

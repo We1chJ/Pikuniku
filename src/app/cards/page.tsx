@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Nav from "@/components/Nav";
+import PronounceButton from "@/components/PronounceButton";
 import { useStore, tasksFor } from "@/lib/store";
 import { TYPE_LABEL } from "@/components/QuizPanel";
 import type { CardType } from "@/lib/types";
@@ -136,12 +137,18 @@ export default function Cards() {
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{c.meanings.join(", ")}</p>
                         {c.readings.length > 0 && (
-                          <p className="jp mt-0.5 text-sm text-muted">
-                            {c.readings.join("、")}
-                            {c.altReadings.length > 0 && (
-                              <span className="opacity-60"> · also {c.altReadings.join("、")}</span>
-                            )}
-                          </p>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <p className="jp text-sm text-muted">
+                              {c.readings.join("、")}
+                              {c.altReadings.length > 0 && (
+                                <span className="opacity-60">
+                                  {" "}
+                                  · also {c.altReadings.join("、")}
+                                </span>
+                              )}
+                            </p>
+                            <PronounceButton card={c} className="h-6 w-6" />
+                          </div>
                         )}
                         {c.blacklist.length > 0 && (
                           <p className="mt-1 text-xs text-incorrect">

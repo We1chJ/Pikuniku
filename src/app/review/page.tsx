@@ -99,7 +99,7 @@ function Summary({ tally }: { tally: { correct: number; wrong: number } }) {
       )}
       <div className="mt-8 flex gap-3">
         <Link
-          href="/dashboard"
+          href="/"
           className="rounded-xl bg-foreground px-5 py-3 text-sm font-semibold text-background"
         >
           Dashboard

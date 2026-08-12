@@ -1,145 +1,192 @@
+"use client";
+
 import Link from "next/link";
-import DemoQuiz from "@/components/DemoQuiz";
+import Nav from "@/components/Nav";
+import { useStore, tasksFor } from "@/lib/store";
+import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib/scheduler";
 
-const LADDER = [
-  { name: "Apprentice", cls: "bg-stage-apprentice", note: "hours" },
-  { name: "Guru", cls: "bg-stage-guru", note: "days" },
-  { name: "Master", cls: "bg-stage-master", note: "weeks" },
-  { name: "Enlightened", cls: "bg-stage-enlightened", note: "months" },
-  { name: "Burned", cls: "bg-stage-burned", note: "done" },
-];
+/** Anki's default is 8; a smaller number surfaces problems sooner in a small deck. */
+const LEECH_LAPSES = 4;
 
-const PILLARS = [
-  {
-    accent: "text-component",
-    title: "You type the answer",
-    body: "No multiple choice, no flipping a card and grading yourself. Recall is the whole exercise, so the app makes you produce the answer before it shows you anything.",
-  },
-  {
-    accent: "text-primary",
-    title: "Typos are forgiven. Wrong answers aren't.",
-    body: "Meanings are matched with an edit-distance tolerance that scales with word length. Readings are exact — a wrong kana is a wrong sound. And there's a third state between right and wrong for when you answered the wrong question.",
-  },
-  {
-    accent: "text-compound",
-    title: "Scheduling that adapts",
-    body: "WaniKani's ladder is fixed for everyone. Pikuniku runs FSRS underneath, so intervals fit the card and your history — while keeping the stages, because watching something burn is the point.",
-  },
-];
+export default function Dashboard() {
+  const { ready, cards, progress, log, resetAll } = useStore();
 
-export default function Home() {
+  if (!ready) {
+    return (
+      <>
+        <Nav />
+        <main className="mx-auto max-w-5xl px-4 py-20 text-muted">Loading…</main>
+      </>
+    );
+  }
+
+  const now = new Date();
+  const questions = cards.flatMap((c) =>
+    tasksFor(c).map((task) => ({ card: c, task, state: progress[c.id]?.tasks?.[task] })),
+  );
+
+  const lessons = questions.filter((q) => !q.state);
+  const reviews = questions.filter((q) => q.state && isDue(q.state, now));
+
+  const stageCounts = STAGES.reduce(
+    (acc, s) => ({ ...acc, [s]: 0 }),
+    {} as Record<Stage, number>,
+  );
+  for (const q of questions) {
+    const stage = stageOf(q.state);
+    if (stage !== "Lesson") stageCounts[stage] += 1;
+  }
+
+  // Next 24 hours, bucketed by hour — which reads as clean bars precisely because
+  // due times are truncated to the hour when they're scheduled.
+  const forecast = Array.from({ length: 24 }, (_, h) => {
+    const from = new Date(now.getTime() + h * 3_600_000);
+    const to = new Date(from.getTime() + 3_600_000);
+    const count = questions.filter((q) => {
+      if (!q.state) return false;
+      const due = new Date(q.state.due);
+      return due >= from && due < to;
+    }).length;
+    return { hour: (now.getHours() + h + 1) % 24, count };
+  });
+  const peak = Math.max(1, ...forecast.map((f) => f.count));
+
+  const leeches = cards.filter((c) =>
+    tasksFor(c).some((t) => (progress[c.id]?.tasks?.[t]?.lapses ?? 0) >= LEECH_LAPSES),
+  );
+
+  const scored = log.filter((l) => l.outcome !== "imprecise");
+  const accuracy = scored.length
+    ? Math.round((scored.filter((l) => l.outcome === "precise").length / scored.length) * 100)
+    : null;
+
   return (
-    <main className="flex-1">
-      <section className="relative overflow-hidden border-b border-border">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.12] blur-3xl"
-          style={{
-            background:
-              "radial-gradient(40rem 20rem at 15% 20%, #00aaff, transparent), radial-gradient(35rem 18rem at 80% 15%, #ff00aa, transparent), radial-gradient(30rem 20rem at 55% 90%, #aa00ff, transparent)",
-          }}
-        />
-        <div className="relative mx-auto max-w-5xl px-4 py-24 sm:py-32">
-          <p className="jp mb-6 text-sm font-semibold tracking-[0.35em] text-muted uppercase">
-            ピクニク
-          </p>
-          <h1 className="max-w-3xl text-5xl leading-[1.05] font-bold tracking-tight text-balance sm:text-7xl">
-            WaniKani&rsquo;s method.
-            <br />
-            <span className="text-primary">Your</span> flashcards.
-          </h1>
-          <p className="mt-7 max-w-xl text-lg text-muted">
-            The teaching machinery that makes WaniKani work — the drilling, the forgiving
-            grader, the stages — pointed at material you write yourself.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-xl bg-foreground px-6 py-3.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
-            >
-              Open the dashboard
-            </Link>
-            <Link
-              href="/cards"
-              className="rounded-xl border border-border bg-surface px-6 py-3.5 text-sm font-semibold transition-colors hover:border-primary"
-            >
-              Write a card
-            </Link>
-          </div>
-          <p className="mt-5 text-xs text-muted">
-            Runs entirely in your browser for now — no account, nothing uploaded.
-          </p>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-5xl px-4 py-20">
-        <div className="grid gap-10 sm:grid-cols-3">
-          {PILLARS.map((p) => (
-            <div key={p.title}>
-              <h2 className={`${p.accent} text-sm font-bold tracking-wide uppercase`}>
-                {p.title}
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-muted">{p.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-border bg-surface">
-        <div className="mx-auto max-w-5xl px-4 py-20">
-          <h2 className="text-3xl font-bold tracking-tight">Five stages, then it&rsquo;s yours</h2>
-          <p className="mt-3 max-w-xl text-muted">
-            Every card climbs the same ladder. Get it right and the gap widens; miss it and
-            you drop back. Reach the end and it leaves your queue for good.
-          </p>
-          <ol className="mt-10 grid gap-3 sm:grid-cols-5">
-            {LADDER.map((s, i) => (
-              <li key={s.name} className="flex flex-col gap-2">
-                <div className={`${s.cls} h-2 rounded-full`} />
-                <p className="text-sm font-semibold">{s.name}</p>
-                <p className="text-xs text-muted">
-                  {i + 1} · {s.note}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-4 py-20">
-        <h2 className="text-3xl font-bold tracking-tight">Try a review</h2>
-        <p className="mt-3 text-muted">
-          This is the real review screen and the real grader. Answer in English for a
-          meaning, or type romaji for a reading and watch it become kana.
-        </p>
-        <div className="mt-8">
-          <DemoQuiz />
-        </div>
-      </section>
-
-      <section className="border-t border-border bg-surface">
-        <div className="mx-auto max-w-3xl px-4 py-20">
-          <h2 className="text-3xl font-bold tracking-tight text-balance">
-            When a card won&rsquo;t stick, the card is usually the problem
-          </h2>
-          <p className="mt-4 text-muted">
-            In a deck you wrote yourself, an item you keep failing is rarely a memory
-            failure. It&rsquo;s an ambiguous answer, a missing synonym, or two cards that
-            should have been one. So Pikuniku flags those cards and takes you straight to
-            editing them — the fix an app with a fixed curriculum can&rsquo;t offer you.
-          </p>
+    <>
+      <Nav />
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Link
-            href="/dashboard"
-            className="mt-8 inline-block rounded-xl bg-foreground px-6 py-3.5 text-sm font-semibold text-background"
+            href="/review"
+            className="rounded-2xl bg-component p-7 text-white transition-transform hover:-translate-y-0.5"
           >
-            Start reviewing
+            <p className="text-sm font-semibold tracking-[0.2em] uppercase opacity-85">
+              Lessons
+            </p>
+            <p className="mt-2 text-6xl font-bold">{lessons.length}</p>
+            <p className="mt-2 text-sm opacity-85">Cards you haven&rsquo;t met yet</p>
+          </Link>
+          <Link
+            href="/review"
+            className="rounded-2xl bg-primary p-7 text-white transition-transform hover:-translate-y-0.5"
+          >
+            <p className="text-sm font-semibold tracking-[0.2em] uppercase opacity-85">
+              Reviews
+            </p>
+            <p className="mt-2 text-6xl font-bold">{reviews.length}</p>
+            <p className="mt-2 text-sm opacity-85">Due right now</p>
           </Link>
         </div>
-      </section>
 
-      <footer className="mx-auto max-w-5xl px-4 py-10 text-xs text-muted">
-        Pikuniku is an independent project. Not affiliated with WaniKani or Tofugu.
-      </footer>
-    </main>
+        <section className="mt-10">
+          <h2 className="text-sm font-bold tracking-wide uppercase">Progress</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {STAGES.map((s) => (
+              <div key={s} className="rounded-xl border border-border bg-surface p-4">
+                <div className={`${STAGE_CLASS[s]} mb-3 h-1.5 w-8 rounded-full`} />
+                <p className="text-3xl font-bold">{stageCounts[s]}</p>
+                <p className="mt-1 text-xs text-muted">{s}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <h2 className="text-sm font-bold tracking-wide uppercase">Next 24 hours</h2>
+          <div className="mt-4 flex h-28 items-end gap-1 rounded-xl border border-border bg-surface p-4">
+            {forecast.map((f, i) => (
+              <div key={i} className="group flex flex-1 flex-col items-center justify-end gap-1">
+                <div
+                  className="w-full rounded-sm bg-accent"
+                  style={{ height: `${(f.count / peak) * 100}%`, minHeight: f.count ? 4 : 1 }}
+                  title={`${f.count} at ${f.hour}:00`}
+                />
+                {i % 6 === 0 && <span className="text-[10px] text-muted">{f.hour}</span>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-surface p-5">
+            <h2 className="text-sm font-bold tracking-wide uppercase">Accuracy</h2>
+            <p className="mt-3 text-4xl font-bold">
+              {accuracy === null ? "—" : `${accuracy}%`}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              {log.length} answers recorded. Typo-forgiven answers are excluded.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface p-5">
+            <h2 className="text-sm font-bold tracking-wide uppercase">Leeches</h2>
+            {leeches.length === 0 ? (
+              <p className="mt-3 text-sm text-muted">
+                Nothing stuck yet. Cards failed {LEECH_LAPSES}+ times show up here — usually
+                because the card needs editing, not more drilling.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {leeches.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between gap-3">
+                    <span className="jp text-xl">{c.front}</span>
+                    <Link href="/cards" className="text-xs font-semibold text-primary">
+                      Edit this card →
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <h2 className="text-sm font-bold tracking-wide uppercase">All cards</h2>
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+            {cards.map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-0"
+              >
+                <span className="jp w-12 shrink-0 text-2xl">{c.front}</span>
+                <span className="flex-1 truncate text-sm">{c.meanings[0]}</span>
+                {tasksFor(c).map((t) => {
+                  const st = progress[c.id]?.tasks?.[t];
+                  const stage = stageOf(st);
+                  return (
+                    <span
+                      key={t}
+                      className={`${STAGE_CLASS[stage]} rounded-full px-2 py-0.5 text-[10px] font-semibold text-white`}
+                      title={`${t}: ${untilDue(st)}`}
+                    >
+                      {t === "meaning" ? "M" : "R"}
+                    </span>
+                  );
+                })}
+                <span className="w-24 shrink-0 text-right text-xs text-muted">
+                  {untilDue(progress[c.id]?.tasks?.meaning)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <button
+          onClick={resetAll}
+          className="mt-8 text-xs text-muted underline underline-offset-4 hover:text-incorrect"
+        >
+          Reset all progress and restore the demo deck
+        </button>
+      </main>
+    </>
   );
 }

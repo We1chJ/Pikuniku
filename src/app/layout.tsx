@@ -13,9 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pikuniku — WaniKani's method, your flashcards",
-  description:
-    "A spaced-repetition trainer built on WaniKani's teaching model, driven by flashcards you write yourself.",
+  title: "Pikuniku",
+  description: "Spaced-repetition drilling for my own flashcards.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

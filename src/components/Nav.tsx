@@ -8,7 +8,7 @@ export default function Nav() {
           ピクニク
         </Link>
         <div className="flex gap-5 text-sm font-medium">
-          <Link href="/dashboard" className="hover:text-primary">
+          <Link href="/" className="hover:text-primary">
             Dashboard
           </Link>
           <Link href="/cards" className="hover:text-primary">

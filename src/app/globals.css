@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/*
+ * Palette (plan §6.5).
+ *
+ * Card types use WaniKani's saturated trio, built from the same three channel
+ * values (00 / AA / FF) — which is why it reads as one family.
+ *
+ * SRS stages deliberately do NOT reuse those hues. WaniKani makes pink mean both
+ * "kanji" and "Apprentice", and purple mean both "vocabulary" and "Guru", which
+ * is a long-standing user complaint. Stages get their own channel instead: a heat
+ * ramp that ends in charcoal, so "Burned" finally looks like what it's called.
+ */
+@theme {
+  --color-component: #00aaff;
+  --color-primary: #ff00aa;
+  --color-compound: #aa00ff;
+  --color-accent: #ffaa00;
+
+  --color-stage-lesson: #94a3b8;
+  --color-stage-apprentice: #f7b32b;
+  --color-stage-guru: #f3722c;
+  --color-stage-master: #e63946;
+  --color-stage-enlightened: #7f1d1d;
+  --color-stage-burned: #2b2b2b;
+
+  --color-correct: #16a34a;
+  --color-incorrect: #dc2626;
+  --color-retry: #f59e0b;
+
+  --font-jp:
+    var(--font-geist-sans), "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo,
+    "MS Gothic", sans-serif;
+}
+
+:root {
+  --background: #f7f7f9;
+  --foreground: #1a1a1e;
+  --surface: #ffffff;
+  --border: #e4e4e9;
+  --muted: #6b6b76;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #131317;
+    --foreground: #ededf0;
+    --surface: #1c1c22;
+    --border: #2e2e37;
+    --muted: #9a9aa6;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.jp {
+  font-family: var(--font-jp);
+  font-feature-settings: "palt";
+}
+
+/* The shake is the third answer state made visible: it says "try again",
+   not "you were wrong", so it must never look like the red failure state. */
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-7px);
+  }
+  40%,
+  60% {
+    transform: translateX(7px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}

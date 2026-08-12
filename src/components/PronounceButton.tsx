@@ -1,6 +1,7 @@
 "use client";
 
-import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
+import { useEffect } from "react";
+import { primeSpeech, pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
 import type { Card } from "@/lib/types";
 
 /**
@@ -15,6 +16,19 @@ export default function PronounceButton({
   className?: string;
 }) {
   const voice = useJapaneseVoice();
+
+  // Warm the engine on the first interaction anywhere on the page, so the first
+  // press of this button isn't the one that pays for connection setup.
+  useEffect(() => {
+    const onFirstGesture = () => primeSpeech();
+    document.addEventListener("pointerdown", onFirstGesture, { once: true });
+    document.addEventListener("keydown", onFirstGesture, { once: true });
+    return () => {
+      document.removeEventListener("pointerdown", onFirstGesture);
+      document.removeEventListener("keydown", onFirstGesture);
+    };
+  }, []);
+
   if (!voice) return null;
 
   return (

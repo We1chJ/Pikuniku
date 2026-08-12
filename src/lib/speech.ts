@@ -62,14 +62,40 @@ export function useJapaneseVoice(): SpeechSynthesisVoice | null {
   return pickJapanese(all);
 }
 
+let primed = false;
+
+/**
+ * Wake the synthesis engine before it's needed.
+ *
+ * Remote voices (Chrome's "Google 日本語" among them) hand the text to a server
+ * and stream audio back, and the very first call pays for connection setup on
+ * top of that. Speaking a silent utterance on the first user gesture gets that
+ * cost out of the way while nobody is waiting for it.
+ *
+ * This only shaves the first-play penalty. The per-play round-trip is inherent
+ * to remote voices — installing a local Japanese voice is what removes it.
+ */
+export function primeSpeech() {
+  if (primed || !supported()) return;
+  primed = true;
+  const warmup = new SpeechSynthesisUtterance("");
+  warmup.volume = 0;
+  window.speechSynthesis.speak(warmup);
+}
+
 export function speak(text: string, voice: SpeechSynthesisVoice | null) {
   if (!supported() || !text) return;
   const synth = window.speechSynthesis;
-  synth.cancel(); // cut off any previous utterance rather than queueing
+  // Chrome can leave the engine suspended after idle time; resuming costs
+  // nothing when it isn't.
+  synth.resume();
+  // Only cancel if something is actually queued — an unconditional cancel()
+  // makes the engine tear down and rebuild state before every single play.
+  if (synth.speaking || synth.pending) synth.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   if (voice) utterance.voice = voice;
   utterance.lang = voice?.lang ?? "ja-JP";
-  utterance.rate = 0.85; // full speed is too quick to learn a new word from
+  utterance.rate = 0.95; // just under natural pace; slower only makes it drag
   synth.speak(utterance);
 }
 

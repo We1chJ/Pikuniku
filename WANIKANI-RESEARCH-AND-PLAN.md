@@ -5,10 +5,11 @@ unlock model, its two-part (meaning + reading) review loop, and its forgiving-bu
 grading — but where **the user authors all the content themselves** as flashcards, instead of
 consuming a fixed 60-level Japanese curriculum.
 
-**Status:** Iteration 5 — **research complete; research loop cancelled.** WaniKani itself is fully
-mapped. **Decided:** scheduler = FSRS via `ts-fsrs` (§6.2); UI mirrors WaniKani + landing page
-(§6.5). **Still open:** §6.1 stack (local-first web vs. web + backend) — the only remaining blocker
-— plus §6.3 question types and §6.4 scope. Every mechanic needed to build the
+**Status:** Research complete; research loop cancelled. WaniKani is fully mapped.
+**Decided:** stack = Next.js + Supabase, cloud-hosted with a local dev loop (§6.1); scheduler =
+FSRS via `ts-fsrs` (§6.2); UI mirrors WaniKani + landing page (§6.5).
+**Still open:** §6.3 question types and §6.4 Japanese-first vs. generic — neither blocks scaffolding.
+**Next step:** build. Every mechanic needed to build the
 app is documented and sourced, including the one non-obvious trap (EN→JP reversal is not
 symmetric, §1.7.1). The remaining blocker is the four decisions in
 [§6](#6-open-decisions--need-your-call), not more research. Nothing has been built yet.
@@ -549,13 +550,53 @@ mobile apps, LLM mnemonics.
 
 I've deliberately not picked these. Each changes the shape of the build substantially.
 
-### 6.1 Platform / stack
+### 6.1 Platform / stack — ✅ **DECIDED: Next.js + Supabase, cloud-hosted, local dev loop**
 
-| Option | Pros | Cons |
-|---|---|---|
-| **A. Local-first desktop/web (SvelteKit or React + SQLite/IndexedDB)** | No server, no auth, no cost; works offline; fastest to build | No cross-device sync without extra work |
-| **B. Web app + backend (Next.js + Postgres + Prisma)** | Sync, sharing decks later, familiar | Auth, hosting, cost, slower to first working version |
-| **C. CLI/TUI + local SQLite** | Fastest of all to build; scriptable; great for a personal tool | No mobile, no audio, weaker UX for a review loop you'll do daily |
+> **Decision (2026-08-12).** Develop locally, run in the cloud, Postgres via **Supabase**.
+> Option C (CLI/TUI) is ruled out by the UI requirement in §6.5.
+
+**Why Supabase over the alternatives**, for this app specifically:
+
+- **The data is relational and the review log is the point.** Decks → cards → tasks → progress →
+  an append-only log of every answer. Postgres is correct; a document store would fight us. And
+  FSRS parameter optimisation later consumes exactly that full review history, so the log is not
+  incidental — it's the most valuable table in the schema.
+- **Auth comes with it.** The moment this is cloud-hosted and multi-device, you need accounts.
+  Neon is a superb *database* but gives you no auth — you'd bolt on Auth.js or Clerk. Supabase
+  bundles it.
+- **RLS removes the API layer.** With row-level security the client can talk to Postgres directly
+  and still be safe, so there's no CRUD backend to write and maintain. For a solo project that is
+  the single biggest time saving on offer.
+- **The local-dev story is exactly what you asked for.** `supabase start` runs the whole stack
+  (Postgres, auth, studio) in Docker locally; schema changes are versioned as migrations in
+  `supabase/migrations/` and pushed to the cloud project with `supabase db push`. Test locally,
+  ship the same schema up. ([Local development](https://supabase.com/docs/guides/local-development))
+
+**Neon** would be the better pick if we wanted pure serverless Postgres with branching and no BaaS
+coupling, or many separate projects (its free tier allows 100, vs Supabase's 2). Neither applies to
+one app that needs auth.
+
+**Two caveats worth designing around:**
+
+1. **Free-tier projects pause after ~7 days of inactivity.** Mildly ironic for an SRS app — the
+   exact scenario WaniKani's vacation mode exists for is the one that puts the database to sleep.
+   Not data loss, but the app appears broken until you unpause. Budget for the Pro tier, or accept
+   a manual unpause after breaks.
+2. **Supabase has no built-in offline sync**, and a review loop genuinely wants to work on a train.
+   Mitigation is cheap *if designed in now*: keep the session queue and answers in **IndexedDB**,
+   and treat `ReviewLog` as **append-only** — appends from multiple devices merge without conflict
+   resolution, because there is nothing to conflict over. Derived state (`stability`, `difficulty`,
+   `due`) is then recomputed from the log rather than synced as mutable rows. **This is the reason
+   §3.1 keeps `ReviewLog` immutable, and it should not be compromised.**
+
+**Where FSRS runs:** client-side via `ts-fsrs`, which means the client computes `due`. With RLS a
+client could in principle write any schedule it likes. For a personal tool that is fine and worth
+the simplicity; if this ever becomes multi-user or competitive, move scheduling into a Postgres
+function or an edge function and make `due` server-authoritative.
+
+**Proposed concrete stack:** Next.js (App Router) + TypeScript + Tailwind, Supabase (Postgres +
+Auth + RLS), `ts-fsrs` for scheduling, `wanakana` for kana input, deployed on Vercel. Local dev
+against `supabase start`.
 
 ### 6.2 Scheduling model — ✅ **DECIDED: FSRS via `ts-fsrs`**
 
@@ -726,6 +767,7 @@ different app once you sign in.
 - [Anki Manual — Leeches](https://docs.ankiweb.net/leeches.html)
 - [ts-fsrs — TypeScript FSRS-6 implementation](https://github.com/open-spaced-repetition/ts-fsrs)
 - [Community — Color Coding: why does pink mean both "Kanji" and "Apprentice"?](https://community.wanikani.com/t/color-coding-why-does-pink-mean-both-kanji-and-apprentice/46196)
+- [Supabase — Local development & CLI workflows](https://supabase.com/docs/guides/local-development)
 - [CSSColors — the `aa00ff / ff00aa / 00aaff / ffaa00 / aaff00` palette](https://csscolors.com/palette/aa00ff-ff00aa-00aaff-ffaa00-aaff00/) *(community-sourced; WaniKani publishes no brand guide)*
 - [Tofugu — Learn Kanji with Radicals and Mnemonics](https://www.tofugu.com/japanese/kanji-radicals-mnemonic-method/)
 - [Wanilog — How WaniKani SRS works](https://wanilog.com/guides/wanikani-srs-explained) *(community, unverified interval detail)*

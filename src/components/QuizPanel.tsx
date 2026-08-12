@@ -35,9 +35,25 @@ export default function QuizPanel({
   progressLabel?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef<number>(0);
   const [phase, setPhase] = useState<Phase>({ state: "input" });
-  const [retry, setRetry] = useState<{ hint: string; nonce: number } | null>(null);
+  const [retry, setRetry] = useState<{ hint: string } | null>(null);
+
+  /**
+   * Restart the shake animation imperatively.
+   *
+   * The obvious way — changing a React `key` — remounts the input, which throws
+   * away both the caret and everything the user typed. Retriggering the CSS
+   * animation by hand keeps the same DOM node, so focus and text survive.
+   */
+  function shake() {
+    const bar = barRef.current;
+    if (!bar) return;
+    bar.classList.remove("animate-shake");
+    void bar.offsetWidth; // force reflow so the animation can replay
+    bar.classList.add("animate-shake");
+  }
 
   // Meanings stay English; only readings get transliterated — the same split
   // WaniKani makes. A card whose readings are all katakana (loanwords, onomatopoeia)
@@ -77,13 +93,22 @@ export default function QuizPanel({
 
     const outcome = grade(el.value, card, task, deck);
     if (outcome.kind === "retry") {
-      // Not an attempt. Shake, hint, let them try again — no penalty, no log.
-      setRetry({ hint: outcome.hint, nonce: Date.now() });
+      // Not an attempt. Shake, hint, let them fix it — no penalty, no log, and
+      // their text stays put so they can edit rather than retype.
+      setRetry({ hint: outcome.hint });
+      shake();
       el.focus({ preventScroll: true });
       return;
     }
+    setRetry(null);
     setPhase({ state: "revealed", outcome });
   }, [phase, card, task, deck, onResolved]);
+
+  // Re-assert focus on every phase change, so answering — right or wrong — leaves
+  // the caret in the box and Enter carries straight on to the next question.
+  useEffect(() => {
+    inputRef.current?.focus({ preventScroll: true });
+  }, [phase]);
 
   // The input should never lose the keyboard. If focus drifts — a stray click on
   // the background, a tab-away and back — the next keystroke pulls it back, and
@@ -148,8 +173,8 @@ export default function QuizPanel({
 
       <div className="mx-auto w-full max-w-xl px-4">
         <div
-          key={retry?.nonce}
-          className={`${barClass} ${retry ? "animate-shake" : ""} -mt-7 rounded-xl border border-border shadow-lg`}
+          ref={barRef}
+          className={`${barClass} -mt-7 rounded-xl border border-border shadow-lg`}
         >
           <input
             ref={inputRef}

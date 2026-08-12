@@ -1,0 +1,5 @@
+Tells GitHub Pages not to run Jekyll over the output.
+
+Without this, Jekyll strips directories beginning with an underscore — which
+would delete _next/ and take every script and stylesheet with it, leaving an
+unstyled, non-functioning page.

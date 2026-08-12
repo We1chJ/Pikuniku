@@ -27,11 +27,12 @@ export const MAX_STARTED = 10;
 export function buildQueue(
   cards: Card[],
   progress: Record<string, Progress>,
+  production = false,
   now = new Date(),
 ): SessionQuestion[] {
   const queue: SessionQuestion[] = [];
   for (const card of cards) {
-    for (const task of tasksFor(card)) {
+    for (const task of tasksFor(card, production)) {
       if (isDue(progress[card.id]?.tasks?.[task], now)) {
         queue.push({ cardId: card.id, task, choiceDelay: 0, answered: false, incorrect: 0 });
       }

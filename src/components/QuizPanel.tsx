@@ -70,9 +70,10 @@ export default function QuizPanel({
     bar.classList.add("animate-shake");
   }
 
-  // Meanings stay English; only readings get transliterated — the same split
-  // WaniKani makes. A card whose readings are all katakana (loanwords, onomatopoeia)
-  // should produce katakana as you type, not hiragana.
+  // Meanings stay English; anything answered in Japanese gets transliterated —
+  // the same split WaniKani makes. A card whose readings are all katakana
+  // (loanwords, onomatopoeia) should produce katakana as you type, not hiragana.
+  const japaneseAnswer = task === "reading" || task === "production";
   const imeMode: "toKatakana" | true =
     card.readings.length > 0 && card.readings.every((r) => isKatakana(r))
       ? "toKatakana"
@@ -86,7 +87,7 @@ export default function QuizPanel({
     const el = inputRef.current;
     startedAt.current = Date.now();
     el?.focus({ preventScroll: true });
-    if (!el || task !== "reading") return;
+    if (!el || !japaneseAnswer) return;
     bind(el, { IMEMode: imeMode });
     return () => {
       try {
@@ -95,7 +96,7 @@ export default function QuizPanel({
         /* already unbound */
       }
     };
-  }, [task, imeMode]);
+  }, [task, imeMode, japaneseAnswer]);
 
   const submit = useCallback(() => {
     const el = inputRef.current;
@@ -187,11 +188,24 @@ export default function QuizPanel({
             {progressLabel}
           </p>
         )}
-        <p className="jp text-7xl leading-none font-medium select-none sm:text-8xl">
-          {card.front}
-        </p>
+        {/* Production shows the English instead — the whole point is that the
+            Japanese is what you have to come up with. */}
+        {task === "production" ? (
+          <p className="max-w-2xl text-center text-4xl leading-tight font-semibold text-balance select-none sm:text-5xl">
+            {card.meanings.join(", ")}
+          </p>
+        ) : (
+          <p className="jp text-7xl leading-none font-medium select-none sm:text-8xl">
+            {card.front}
+          </p>
+        )}
         <p className="mt-6 text-xs font-semibold tracking-[0.2em] uppercase opacity-80">
-          {TYPE_LABEL[card.type]} · {task === "meaning" ? "Meaning" : readingPrompt(card)}
+          {TYPE_LABEL[card.type]} ·{" "}
+          {task === "meaning"
+            ? "Meaning"
+            : task === "production"
+              ? "English → Japanese"
+              : readingPrompt(card)}
         </p>
       </div>
 
@@ -208,15 +222,15 @@ export default function QuizPanel({
             autoCorrect="off"
             spellCheck={false}
             readOnly={!!revealed}
-            aria-label={task === "meaning" ? "Meaning answer" : "Reading answer"}
-            placeholder={task === "meaning" ? "Your answer" : "答え"}
+            aria-label={`${task} answer`}
+            placeholder={japaneseAnswer ? "答え" : "Your answer"}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 submit();
               }
             }}
-            className={`${task === "reading" ? "jp" : ""} w-full bg-transparent px-5 py-4 text-center text-2xl outline-none placeholder:opacity-50`}
+            className={`${japaneseAnswer ? "jp" : ""} w-full bg-transparent px-5 py-4 text-center text-2xl outline-none placeholder:opacity-50`}
           />
         </div>
 
@@ -235,6 +249,14 @@ export default function QuizPanel({
               <p className="mb-2 text-sm font-semibold text-incorrect">Not quite.</p>
             )}
             <dl className="space-y-1 text-sm">
+              {/* On production the header showed the English, so the word itself
+                  is what's missing from the answer panel. */}
+              {task === "production" && (
+                <div className="flex gap-2">
+                  <dt className="w-20 shrink-0 text-muted">Word</dt>
+                  <dd className="jp text-lg font-medium">{card.front}</dd>
+                </div>
+              )}
               <div className="flex gap-2">
                 <dt className="w-20 shrink-0 text-muted">Meaning</dt>
                 <dd className="font-medium">{card.meanings.join(", ")}</dd>
@@ -270,7 +292,7 @@ export default function QuizPanel({
         )}
 
         <p className="mt-4 text-center text-xs text-muted">
-          {task === "reading"
+          {japaneseAnswer
             ? `Press Enter to answer. Romaji becomes ${imeMode === "toKatakana" ? "katakana" : "kana"} as you type.`
             : "Press Enter to answer. Typos are forgiven."}
         </p>

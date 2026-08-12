@@ -9,7 +9,7 @@ import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib
 const LEECH_LAPSES = 4;
 
 export default function Dashboard() {
-  const { ready, cards, progress, log, resetAll } = useStore();
+  const { ready, cards, progress, log, settings, setSetting, resetAll } = useStore();
 
   if (!ready) {
     return (
@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   const now = new Date();
   const questions = cards.flatMap((c) =>
-    tasksFor(c).map((task) => ({ card: c, task, state: progress[c.id]?.tasks?.[task] })),
+    tasksFor(c, settings.production).map((task) => ({ card: c, task, state: progress[c.id]?.tasks?.[task] })),
   );
 
   const lessons = questions.filter((q) => !q.state);
@@ -52,7 +52,7 @@ export default function Dashboard() {
   const peak = Math.max(1, ...forecast.map((f) => f.count));
 
   const leeches = cards.filter((c) =>
-    tasksFor(c).some((t) => (progress[c.id]?.tasks?.[t]?.lapses ?? 0) >= LEECH_LAPSES),
+    tasksFor(c, settings.production).some((t) => (progress[c.id]?.tasks?.[t]?.lapses ?? 0) >= LEECH_LAPSES),
   );
 
   const scored = log.filter((l) => l.outcome !== "imprecise");
@@ -159,7 +159,7 @@ export default function Dashboard() {
               >
                 <span className="jp w-12 shrink-0 text-2xl">{c.front}</span>
                 <span className="flex-1 truncate text-sm">{c.meanings[0]}</span>
-                {tasksFor(c).map((t) => {
+                {tasksFor(c, settings.production).map((t) => {
                   const st = progress[c.id]?.tasks?.[t];
                   const stage = stageOf(st);
                   return (
@@ -168,7 +168,7 @@ export default function Dashboard() {
                       className={`${STAGE_CLASS[stage]} rounded-full px-2 py-0.5 text-[10px] font-semibold text-white`}
                       title={`${t}: ${untilDue(st)}`}
                     >
-                      {t === "meaning" ? "M" : "R"}
+                      {t === "meaning" ? "M" : t === "reading" ? "R" : "P"}
                     </span>
                   );
                 })}
@@ -178,6 +178,27 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="mt-10">
+          <h2 className="text-sm font-bold tracking-wide uppercase">Settings</h2>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-5">
+            <input
+              type="checkbox"
+              checked={settings.production}
+              onChange={(e) => setSetting("production", e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+            />
+            <span>
+              <span className="text-sm font-semibold">Also test English → Japanese</span>
+              <span className="mt-1 block text-xs text-muted">
+                Adds a third question to cards that have a reading: you&rsquo;re shown the
+                meaning and produce the word. Harder than recognition, and it grows your
+                daily review count by roughly half. Answers count in kana — the characters
+                are accepted too if you have a Japanese IME.
+              </span>
+            </span>
+          </label>
         </section>
 
         <button

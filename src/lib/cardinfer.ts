@@ -7,7 +7,32 @@
  */
 
 import { isKana, isKanji } from "wanakana";
-import type { CardType } from "./types";
+import type { Card, CardType } from "./types";
+
+export function isAllKana(s: string): boolean {
+  return s.length > 0 && [...s].every((ch) => isKana(ch));
+}
+
+/**
+ * Can this card be asked in the English → Japanese direction?
+ *
+ * Only if there's something the user can actually type. Producing 猫 requires a
+ * real Japanese IME, which WanaKana is not — it converts romaji to kana and
+ * stops there. So a card needs either a kana reading or a kana headword;
+ * a kanji card with no reading has no typeable answer and is skipped.
+ */
+export function isProducible(card: Card): boolean {
+  return card.readings.length > 0 || isAllKana(card.front);
+}
+
+/**
+ * What counts as producing this word. The reading is the realistic answer, but
+ * the characters are accepted too — someone with an IME shouldn't be marked
+ * wrong for typing the word properly.
+ */
+export function productionAnswers(card: Card): string[] {
+  return [...card.readings, card.front];
+}
 
 export function hasKanji(s: string): boolean {
   return [...s].some((ch) => isKanji(ch));

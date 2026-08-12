@@ -10,6 +10,7 @@
  */
 
 import { isJapanese, isRomaji, toHiragana } from "wanakana";
+import { productionAnswers } from "./cardinfer";
 import { READING_TYPE_LABEL, type AltReading, type Card, type TaskKind } from "./types";
 
 export type RetryReason =
@@ -174,15 +175,58 @@ function gradeReading(input: string, card: Card): GradeOutcome {
   return { kind: "wrong" };
 }
 
+/**
+ * English → Japanese.
+ *
+ * The asymmetry that sinks naive reverse-flashcards: going forward, "girl" is a
+ * fine answer for 少女, 女の子 *and* 女子. Going backward, the prompt "girl" has
+ * three right answers and we wanted one. Punishing that teaches nothing — it
+ * tests whether you guessed the same card we picked. So a word that legitimately
+ * satisfies the prompt but belongs to another card is a retry, not a mistake.
+ */
+function gradeProduction(input: string, card: Card, deck: Card[]): GradeOutcome {
+  const raw = input.trim();
+  if (!raw) return { kind: "retry", reason: "empty", hint: "Type an answer." };
+
+  if (isRomaji(raw)) {
+    return {
+      kind: "retry",
+      reason: "script-mismatch",
+      hint: "We're looking for the Japanese — type it in kana.",
+    };
+  }
+
+  const answer = normalizeReading(raw);
+  const accepted = productionAnswers(card).map(normalizeReading);
+  if (accepted.includes(answer)) return { kind: "precise" };
+
+  const wanted = new Set(card.meanings.map(normalizeMeaning));
+  const other = deck.find(
+    (c) =>
+      c.id !== card.id &&
+      c.meanings.some((m) => wanted.has(normalizeMeaning(m))) &&
+      productionAnswers(c).map(normalizeReading).includes(answer),
+  );
+  if (other) {
+    return {
+      kind: "retry",
+      reason: "alternate-match",
+      hint: `That's ${other.front}, which also fits — but we want a different word here.`,
+    };
+  }
+
+  return { kind: "wrong" };
+}
+
 export function grade(
   input: string,
   card: Card,
   task: TaskKind,
   deck: Card[] = [],
 ): GradeOutcome {
-  return task === "meaning"
-    ? gradeMeaning(input, card, deck)
-    : gradeReading(input, card);
+  if (task === "meaning") return gradeMeaning(input, card, deck);
+  if (task === "production") return gradeProduction(input, card, deck);
+  return gradeReading(input, card);
 }
 
 /** Does this outcome count as an attempt that moves the scheduler? */

@@ -22,7 +22,9 @@ export default function Review() {
 
 function Session({ store }: { store: Store }) {
   const { cards, progress, recordAnswer } = store;
-  const [queue, setQueue] = useState<SessionQuestion[]>(() => buildQueue(cards, progress));
+  const [queue, setQueue] = useState<SessionQuestion[]>(() =>
+    buildQueue(cards, progress, store.settings.production),
+  );
   const [lastCardId, setLastCardId] = useState<string | null>(null);
   const [tally, setTally] = useState({ correct: 0, wrong: 0 });
 

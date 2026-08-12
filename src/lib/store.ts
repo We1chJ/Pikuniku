@@ -17,6 +17,7 @@
 import { useSyncExternalStore } from "react";
 import type { Card, Progress, ReviewLogEntry, TaskKind } from "./types";
 import { SEED_CARDS } from "./seed";
+import { isProducible } from "./cardinfer";
 import { newState } from "./scheduler";
 
 const KEYS = {
@@ -29,9 +30,14 @@ const KEYS = {
 export interface Settings {
   /** Speak the reading automatically when an answer comes back correct. */
   autoplay: boolean;
+  /**
+   * Also quiz English → Japanese. Off by default: it adds a third question to
+   * most cards, so turning it on meaningfully increases the daily load.
+   */
+  production: boolean;
 }
 
-const DEFAULT_SETTINGS: Settings = { autoplay: true };
+const DEFAULT_SETTINGS: Settings = { autoplay: true, production: false };
 
 export interface Snapshot {
   ready: boolean;
@@ -187,9 +193,15 @@ export function useStore(): Store {
   return { ...snap, addCard, deleteCard, recordAnswer, setSetting, resetAll };
 }
 
-/** Tasks a card actually has: reading is skipped when the card has no readings. */
-export function tasksFor(card: Card): TaskKind[] {
-  return card.readings.length > 0 ? ["meaning", "reading"] : ["meaning"];
+/**
+ * Tasks a card actually has. Reading is skipped when there are no readings;
+ * production is opt-in and skipped when there's nothing typeable to produce.
+ */
+export function tasksFor(card: Card, production = false): TaskKind[] {
+  const tasks: TaskKind[] = ["meaning"];
+  if (card.readings.length > 0) tasks.push("reading");
+  if (production && isProducible(card)) tasks.push("production");
+  return tasks;
 }
 
 export function stateFor(

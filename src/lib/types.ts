@@ -10,8 +10,15 @@
 /** Which of WaniKani's three tiers this card plays the role of. Drives colour only. */
 export type CardType = "component" | "primary" | "compound";
 
-/** The two question directions we ship in v1. Both are recognition (§6.3). */
-export type TaskKind = "meaning" | "reading";
+/**
+ * The question directions.
+ *
+ * `meaning` and `reading` are recognition — you're shown the Japanese. `production`
+ * is the reverse: shown the English, produce the Japanese. Production is harder and
+ * genuinely ambiguous in a way recognition isn't, so it's opt-in (see §1.7.1 of the
+ * plan and the alternate-match handling in the grader).
+ */
+export type TaskKind = "meaning" | "reading" | "production";
 
 export type ReadingType = "onyomi" | "kunyomi" | "nanori";
 

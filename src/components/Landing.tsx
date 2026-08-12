@@ -55,10 +55,10 @@ export default function Landing() {
             The teaching machinery that makes WaniKani work — the drilling, the forgiving
             grader, the stages — pointed at material you write yourself.
           </p>
-          <div className="mt-10 max-w-lg">
+          <div className="mt-10 max-w-sm">
             <SignInForm autoFocus />
             <p className="mt-3 text-xs text-muted">
-              No password. We email a link, and your cards sync across devices.
+              Your cards sync across every device you sign in on.
             </p>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function Landing() {
             should have been one. So Pikuniku flags those cards and takes you straight to
             editing them — the fix an app with a fixed curriculum can&rsquo;t offer you.
           </p>
-          <div className="mt-8 max-w-lg">
+          <div className="mt-8 max-w-sm">
             <SignInForm />
           </div>
         </div>

@@ -12,9 +12,7 @@ export default function SignIn() {
   return (
     <main className="mx-auto flex max-w-md flex-1 flex-col justify-center px-4 py-20">
       <h1 className="jp text-3xl font-bold tracking-tight">ピクニク</h1>
-      <p className="mt-2 text-sm text-muted">
-        Sign in to reach your cards. We&rsquo;ll email you a link — no password.
-      </p>
+      <p className="mt-2 text-sm text-muted">Sign in to reach your cards.</p>
       <div className="mt-6">
         <SignInForm autoFocus />
       </div>

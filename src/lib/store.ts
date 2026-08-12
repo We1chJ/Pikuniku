@@ -192,13 +192,25 @@ const getServerSnapshot = () => EMPTY;
  * Auth
  * ------------------------------------------------------------------ */
 
-export async function signIn(email: string): Promise<string> {
+export async function signIn(email: string, password: string): Promise<string | null> {
   if (!supabase) return "Supabase is not configured.";
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  // On success the auth listener reloads the data, so there's nothing to report.
+  return error ? error.message : null;
+}
+
+export async function signUp(email: string, password: string): Promise<string | null> {
+  if (!supabase) return "Supabase is not configured.";
+  const { data, error } = await supabase.auth.signUp({
     email,
-    options: { emailRedirectTo: window.location.origin },
+    password,
+    options: { emailRedirectTo: window.location.href },
   });
-  return error ? error.message : `Check ${email} for a sign-in link.`;
+  if (error) return error.message;
+  // With email confirmation enabled, signUp returns a user but no session —
+  // the account exists but can't be used until the link is clicked.
+  if (!data.session) return `Account created. Confirm it via the link sent to ${email}.`;
+  return null;
 }
 
 export async function signOut() {

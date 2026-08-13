@@ -262,6 +262,22 @@ export function addCard(card: Omit<Card, "id" | "createdAt">) {
   set({ cards });
 }
 
+/**
+ * Fold a change into one card. Written for the accept-my-answer shortcut, which
+ * has to land before the next question is graded — so the snapshot moves first
+ * and the write follows.
+ */
+export function updateCard(id: string, patch: Partial<Card>) {
+  const cards = snapshot.cards.map((c) => (c.id === id ? { ...c, ...patch } : c));
+  set({ cards });
+
+  if (isRemote) {
+    void remote.updateCard(id, patch).catch((e) => set({ error: message(e) }));
+    return;
+  }
+  write(KEYS.cards, cards);
+}
+
 export function deleteCard(id: string) {
   const cards = snapshot.cards.filter((c) => c.id !== id);
   const progress = { ...snapshot.progress };
@@ -326,6 +342,7 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
 
 export interface Store extends Snapshot {
   addCard: typeof addCard;
+  updateCard: typeof updateCard;
   deleteCard: typeof deleteCard;
   recordAnswer: typeof recordAnswer;
   setSetting: typeof setSetting;
@@ -335,7 +352,16 @@ export interface Store extends Snapshot {
 
 export function useStore(): Store {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, grantExtraLessons, signOut };
+  return {
+    ...snap,
+    addCard,
+    updateCard,
+    deleteCard,
+    recordAnswer,
+    setSetting,
+    grantExtraLessons,
+    signOut,
+  };
 }
 
 /**

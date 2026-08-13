@@ -28,6 +28,7 @@ interface CardRow {
   readings: string[];
   reading_type: string | null;
   alt_readings: AltReading[];
+  alt_production: string[] | null;
   mnemonic: string | null;
   notes: string | null;
   created_at: string;
@@ -67,6 +68,7 @@ function toCard(r: CardRow): Card {
     readings: r.readings,
     readingType: (r.reading_type as ReadingType) ?? undefined,
     altReadings: r.alt_readings ?? [],
+    altProduction: r.alt_production ?? [],
     mnemonic: r.mnemonic ?? undefined,
     notes: r.notes ?? undefined,
     createdAt: new Date(r.created_at).getTime(),
@@ -147,6 +149,24 @@ export async function insertCard(card: Omit<Card, "id" | "createdAt">): Promise<
     .single();
   if (error) throw error;
   return toCard(data as CardRow);
+}
+
+/**
+ * Partial update, sending only the columns that actually changed.
+ *
+ * Narrow on purpose: the only writer is the accept-my-answer shortcut, and
+ * anything it doesn't touch is left alone rather than round-tripped.
+ */
+export async function updateCard(id: string, patch: Partial<Card>): Promise<void> {
+  if (!supabase) throw new Error("Supabase is not configured");
+  const row: Record<string, unknown> = {};
+  if (patch.meanings) row.meanings = patch.meanings;
+  if (patch.readings) row.readings = patch.readings;
+  if (patch.altProduction) row.alt_production = patch.altProduction;
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase.from("cards").update(row).eq("id", id);
+  if (error) throw error;
 }
 
 export async function removeCard(id: string): Promise<void> {

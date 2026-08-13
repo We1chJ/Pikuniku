@@ -59,6 +59,14 @@ export interface Card {
   readingType?: ReadingType;
   /** Real readings that aren't the one being taught → retry, not wrong (§1.6). */
   altReadings: AltReading[];
+  /**
+   * Extra Japanese accepted for the English → Japanese question only.
+   *
+   * Deliberately not folded into `readings`: a word that satisfies "fall" is not
+   * thereby a reading of 秋, and on a kana-only card adding one to `readings`
+   * would conjure a reading question out of nothing.
+   */
+  altProduction?: string[];
   mnemonic?: string;
   notes?: string;
   createdAt: number;

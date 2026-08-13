@@ -87,6 +87,7 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
         task={current.task}
         deck={cards}
         progressLabel={`${remaining(queue)} ${mode === "lessons" ? "to learn" : "left"}`}
+        onAlias={store.updateCard}
         onResolved={(outcome, input, elapsedMs) => {
           const rating = outcomeToRating(outcome, elapsedMs);
           if (rating === null) return; // retry states never resolve

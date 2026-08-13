@@ -233,3 +233,36 @@ export function grade(
 export function isScorable(o: GradeOutcome): boolean {
   return o.kind !== "retry";
 }
+
+/**
+ * Fold a rejected answer into the card, so it counts from now on.
+ *
+ * The realistic failure here isn't ignorance, it's a card written too narrowly:
+ * you wrote "fall" and typed "autumn". Rather than editing the card later — by
+ * which time you've forgotten which card it was — the answer you already gave
+ * becomes part of it, in the field that question actually reads.
+ *
+ * Returns null when there's nothing to do, which matters: a blacklisted answer
+ * would still be rejected afterwards, and pressing the key would look like it
+ * had worked.
+ */
+export function aliasPatch(card: Card, task: TaskKind, input: string): Partial<Card> | null {
+  const raw = input.trim();
+  if (!raw) return null;
+
+  if (task === "meaning") {
+    const answer = normalizeMeaning(raw);
+    if (card.blacklist.some((b) => normalizeMeaning(b) === answer)) return null;
+    if (card.meanings.some((m) => normalizeMeaning(m) === answer)) return null;
+    return { meanings: [...card.meanings, raw] };
+  }
+
+  const answer = normalizeReading(raw);
+  if (task === "reading") {
+    if (card.readings.some((r) => normalizeReading(r) === answer)) return null;
+    return { readings: [...card.readings, raw] };
+  }
+
+  if (productionAnswers(card).some((a) => normalizeReading(a) === answer)) return null;
+  return { altProduction: [...(card.altProduction ?? []), raw] };
+}

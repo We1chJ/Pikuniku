@@ -28,10 +28,11 @@ export function isProducible(card: Card): boolean {
 /**
  * What counts as producing this word. The reading is the realistic answer, but
  * the characters are accepted too — someone with an IME shouldn't be marked
- * wrong for typing the word properly.
+ * wrong for typing the word properly — along with anything accepted by hand
+ * after a rejection.
  */
 export function productionAnswers(card: Card): string[] {
-  return [...card.readings, card.front];
+  return [...card.readings, card.front, ...(card.altProduction ?? [])];
 }
 
 export function hasKanji(s: string): boolean {

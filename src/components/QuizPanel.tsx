@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bind, isKatakana, unbind } from "wanakana";
-import { grade, type GradeOutcome } from "@/lib/grader";
+import { aliasPatch, grade, type GradeOutcome } from "@/lib/grader";
 import PronounceButton from "./PronounceButton";
 import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
 import { READING_TYPE_LABEL, type Card, type TaskKind } from "@/lib/types";
@@ -19,7 +19,20 @@ export const TYPE_LABEL: Record<Card["type"], string> = {
   compound: "Compound",
 };
 
-type Phase = { state: "input" } | { state: "revealed"; outcome: GradeOutcome };
+/**
+ * The answered text is kept on the phase rather than read back off the input.
+ * Reading a ref during render isn't allowed, and whether the accept shortcut is
+ * even offered has to be decided during render.
+ */
+type Phase =
+  | { state: "input" }
+  | { state: "revealed"; outcome: GradeOutcome; input: string };
+
+/**
+ * Accept-my-answer. Safe as a bare letter because it only does anything once
+ * the answer is revealed, and the box is read-only from that point on.
+ */
+const ALIAS_KEY = "a";
 
 /**
  * A bare "Reading" is ambiguous the moment a character has both an on'yomi and a
@@ -36,6 +49,7 @@ export default function QuizPanel({
   task,
   deck,
   onResolved,
+  onAlias,
   progressLabel,
   autoplay = false,
 }: {
@@ -44,6 +58,8 @@ export default function QuizPanel({
   deck: Card[];
   /** Fires once per *scorable* answer, after the user dismisses the feedback. */
   onResolved: (outcome: GradeOutcome, input: string, elapsedMs: number) => void;
+  /** Widen the card so the answer just rejected is accepted from now on. */
+  onAlias: (cardId: string, patch: Partial<Card>) => void;
   progressLabel?: string;
   /** Speak the reading automatically when the answer comes back correct. */
   autoplay?: boolean;
@@ -54,6 +70,7 @@ export default function QuizPanel({
   const startedAt = useRef<number>(0);
   const [phase, setPhase] = useState<Phase>({ state: "input" });
   const [retry, setRetry] = useState<{ hint: string } | null>(null);
+  const [accepted, setAccepted] = useState<string | null>(null);
 
   /**
    * Restart the shake animation imperatively.
@@ -103,7 +120,7 @@ export default function QuizPanel({
     if (!el) return;
 
     if (phase.state === "revealed") {
-      onResolved(phase.outcome, el.value, Date.now() - startedAt.current);
+      onResolved(phase.outcome, phase.input, Date.now() - startedAt.current);
       return;
     }
 
@@ -117,8 +134,26 @@ export default function QuizPanel({
       return;
     }
     setRetry(null);
-    setPhase({ state: "revealed", outcome });
+    setPhase({ state: "revealed", outcome, input: el.value });
   }, [phase, card, task, deck, onResolved]);
+
+  /**
+   * Accept what was just typed, and score the question as if it had been right.
+   *
+   * Nothing has been committed at this point — `onResolved` only fires when the
+   * feedback is dismissed — so there is no penalty to undo. Rewriting the
+   * outcome before it leaves the panel is the whole trick: the scheduler, the
+   * log and the session queue all see a correct answer, because by the time the
+   * card was widened, it was one.
+   */
+  const accept = useCallback(() => {
+    if (phase.state !== "revealed" || phase.outcome.kind !== "wrong") return;
+    const patch = aliasPatch(card, task, phase.input);
+    if (!patch) return;
+    onAlias(card.id, patch);
+    setAccepted(phase.input.trim());
+    setPhase({ ...phase, outcome: { kind: "precise" } });
+  }, [phase, card, task, onAlias]);
 
   // Re-assert focus on every phase change, so answering — right or wrong — leaves
   // the caret in the box and Enter carries straight on to the next question.
@@ -128,11 +163,13 @@ export default function QuizPanel({
 
   // Speak once the answer is revealed, whatever the question was and however it
   // went. Only the revealed phase, though — a shake means the question is still
-  // open, and on a reading question the audio would be the answer.
+  // open, and on a reading question the audio would be the answer. Keyed on the
+  // phase *name*: accepting an answer rewrites the outcome in place, and that
+  // shouldn't say the word twice.
   useEffect(() => {
     if (!autoplay || phase.state !== "revealed") return;
     speak(pronounceable(card), voice);
-  }, [autoplay, phase, card, voice]);
+  }, [autoplay, phase.state, card, voice]);
 
   // The input should never lose the keyboard. If focus drifts — a stray click on
   // the background, a tab-away and back — the next keystroke pulls it back, and
@@ -164,6 +201,10 @@ export default function QuizPanel({
         e.preventDefault();
         refocus();
         submit();
+      } else if (e.key.toLowerCase() === ALIAS_KEY) {
+        e.preventDefault();
+        refocus();
+        accept();
       } else if (e.key.length === 1 || e.key === "Backspace") {
         refocus();
       }
@@ -175,10 +216,17 @@ export default function QuizPanel({
       document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("focus", refocus);
     };
-  }, [submit]);
+  }, [submit, accept]);
 
   const revealed = phase.state === "revealed" ? phase.outcome : null;
   const correct = revealed?.kind === "precise" || revealed?.kind === "imprecise";
+
+  // Offered only when it would actually change something: a blacklisted answer,
+  // or one the card already accepts, would leave the key doing nothing visible.
+  const canAlias =
+    phase.state === "revealed" &&
+    phase.outcome.kind === "wrong" &&
+    aliasPatch(card, task, phase.input) !== null;
 
   const barClass = !revealed
     ? "bg-surface"
@@ -236,6 +284,9 @@ export default function QuizPanel({
               if (e.key === "Enter") {
                 e.preventDefault();
                 submit();
+              } else if (canAlias && e.key.toLowerCase() === ALIAS_KEY) {
+                e.preventDefault();
+                accept();
               }
             }}
             className={`${japaneseAnswer ? "jp" : ""} w-full bg-transparent px-5 py-4 text-center text-2xl outline-none placeholder:opacity-50`}
@@ -255,6 +306,11 @@ export default function QuizPanel({
             )}
             {revealed.kind === "wrong" && (
               <p className="mb-2 text-sm font-semibold text-incorrect">Not quite.</p>
+            )}
+            {accepted && (
+              <p className="mb-2 text-sm font-medium text-correct">
+                Added “{accepted}” to this card. Counted as correct.
+              </p>
             )}
             <dl className="space-y-1 text-sm">
               {/* On production the header showed the English, so the word itself
@@ -286,13 +342,27 @@ export default function QuizPanel({
                 {card.mnemonic}
               </p>
             )}
+            {/* Sits above Continue: it's only useful before you move on, and
+                moving on is what the eye goes to first. */}
+            {canAlias && (
+              <button
+                onClick={accept}
+                tabIndex={-1}
+                onMouseDown={(e) => e.preventDefault()}
+                className="mt-4 w-full rounded-lg border border-correct py-2.5 text-sm font-semibold text-correct transition-colors hover:bg-correct hover:text-white"
+              >
+                <span className="rounded border border-current px-1.5 py-0.5 text-xs">A</span>{" "}
+                Accept “{phase.state === "revealed" ? phase.input.trim() : ""}” as{" "}
+                {task === "meaning" ? "a meaning" : "an answer"} too
+              </button>
+            )}
             <button
               onClick={submit}
               tabIndex={-1}
               // Clicking must not pull focus off the input, or the next question
               // would start with the keyboard pointed at a button.
               onMouseDown={(e) => e.preventDefault()}
-              className="mt-4 w-full rounded-lg bg-foreground py-2.5 text-sm font-semibold text-background"
+              className="mt-3 w-full rounded-lg bg-foreground py-2.5 text-sm font-semibold text-background"
             >
               Continue <span className="opacity-60">(Enter)</span>
             </button>

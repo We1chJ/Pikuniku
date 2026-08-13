@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { bind, unbind } from "wanakana";
 import Nav from "@/components/Nav";
 import SignIn from "@/components/SignIn";
@@ -64,7 +64,40 @@ export default function Cards() {
   const { ready, signedIn, cards, addCard, deleteCard } = useStore();
   const [form, setForm] = useState(empty);
   const frontRef = useRef<HTMLInputElement>(null);
-  const readingRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Attach WanaKana to an input and keep React in step with it.
+   *
+   * WanaKana rewrites `input.value` directly. React's onChange never fires for
+   * a value set from outside React, so a controlled input would immediately
+   * overwrite the converted kana with its stale state — the characters appear
+   * and vanish. Listening to the native input event instead catches every
+   * change, whoever made it.
+   *
+   * A ref callback rather than an effect, because the reading field is
+   * conditionally rendered and this way binding follows the element's life.
+   */
+  const kanaField = useCallback(
+    (field: "front" | "reading") => (el: HTMLInputElement | null) => {
+      if (!el) return;
+      if (field === "front") frontRef.current = el;
+      bind(el, { IMEMode: true });
+      const sync = () => setForm((f) => ({ ...f, [field]: el.value }));
+      el.addEventListener("input", sync);
+      return () => {
+        el.removeEventListener("input", sync);
+        try {
+          unbind(el);
+        } catch {
+          /* already unbound */
+        }
+      };
+    },
+    [],
+  );
+
+  const frontField = useMemo(() => kanaField("front"), [kanaField]);
+  const readingField = useMemo(() => kanaField("reading"), [kanaField]);
 
   // A pasted 猫(ねこ) is split as you type, so the reading lands in its own field.
   const parsed = splitFuriganaNotation(form.front);
@@ -110,12 +143,15 @@ export default function Cards() {
           <div className="rounded-2xl border border-border bg-surface p-5">
             <label className="block text-xs font-semibold text-muted">Japanese</label>
             <input
-              ref={frontRef}
+              // Romaji becomes kana here too, so a kana word can be typed without
+              // switching keyboards. Pasted kanji passes through untouched —
+              // WanaKana only rewrites Latin characters.
+              ref={frontField}
               autoFocus
               value={form.front}
-              onChange={(e) => setForm({ ...form, front: e.target.value })}
+              onChange={() => {}}
               onKeyDown={(e) => e.key === "Enter" && save()}
-              placeholder="猫 or 猫(ねこ)"
+              placeholder="猫, ねこ, or 猫(ねこ)"
               className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-2xl outline-none focus:border-primary"
             />
 
@@ -138,18 +174,10 @@ export default function Cards() {
                   Reading <span className="font-normal">(optional)</span>
                 </label>
                 <input
-                  ref={readingRef}
+                  ref={readingField}
                   value={reading}
-                  onChange={(e) => setForm({ ...form, reading: e.target.value })}
+                  onChange={() => {}}
                   onKeyDown={(e) => e.key === "Enter" && save()}
-                  onFocus={(e) => bind(e.currentTarget, { IMEMode: true })}
-                  onBlur={(e) => {
-                    try {
-                      unbind(e.currentTarget);
-                    } catch {
-                      /* already unbound */
-                    }
-                  }}
                   placeholder="ねこ — romaji becomes kana"
                   className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
                 />

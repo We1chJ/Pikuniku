@@ -126,13 +126,12 @@ export default function QuizPanel({
     inputRef.current?.focus({ preventScroll: true });
   }, [phase]);
 
-  // Speak on a correct answer only. A wrong answer is the wrong moment: you're
-  // reading the correction, not absorbing pronunciation, and hearing the word
-  // you just missed announced at you is more irritating than useful.
+  // Speak once the answer is revealed, whatever the question was and however it
+  // went. Only the revealed phase, though — a shake means the question is still
+  // open, and on a reading question the audio would be the answer.
   useEffect(() => {
     if (!autoplay || phase.state !== "revealed") return;
-    const correct = phase.outcome.kind === "precise" || phase.outcome.kind === "imprecise";
-    if (correct) speak(pronounceable(card), voice);
+    speak(pronounceable(card), voice);
   }, [autoplay, phase, card, voice]);
 
   // The input should never lose the keyboard. If focus drifts — a stray click on

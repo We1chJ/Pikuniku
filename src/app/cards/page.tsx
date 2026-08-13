@@ -95,14 +95,18 @@ export default function Cards() {
   return (
     <>
       <Nav />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        <h1 className="text-3xl font-bold tracking-tight">Your cards</h1>
-        <p className="mt-2 max-w-2xl text-muted">
-          Type the word and what it means. Everything else is worked out for you, or
-          optional.
-        </p>
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-10">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold tracking-tight">Your cards</h1>
+          <p className="mt-2 text-muted">
+            Type the word and what it means. Everything else is worked out for you, or
+            optional.
+          </p>
+        </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[24rem_1fr]">
+        {/* One centred column: the form is the thing you came here to use, so it
+            gets the middle of the screen, with the deck listed beneath it. */}
+        <div className="mt-8 flex flex-col gap-10">
           <div className="rounded-2xl border border-border bg-surface p-5">
             <label className="block text-xs font-semibold text-muted">Japanese</label>
             <input

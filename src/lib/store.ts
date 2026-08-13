@@ -285,23 +285,6 @@ export function setSetting<K extends keyof Settings>(key: K, value: Settings[K])
   set({ settings });
 }
 
-export function resetAll() {
-  if (isRemote) {
-    // Deleting every card cascades progress and the log with it.
-    const ids = snapshot.cards.map((c) => c.id);
-    set({ cards: [], progress: {}, log: [] });
-    void Promise.all(ids.map((id) => remote.removeCard(id))).catch((e) =>
-      set({ error: message(e) }),
-    );
-    return;
-  }
-  const cards = seedCards();
-  write(KEYS.cards, cards);
-  write(KEYS.progress, {});
-  write(KEYS.log, []);
-  set({ cards, progress: {}, log: [] });
-}
-
 /* ------------------------------------------------------------------ */
 
 export interface Store extends Snapshot {
@@ -309,13 +292,12 @@ export interface Store extends Snapshot {
   deleteCard: typeof deleteCard;
   recordAnswer: typeof recordAnswer;
   setSetting: typeof setSetting;
-  resetAll: typeof resetAll;
   signOut: typeof signOut;
 }
 
 export function useStore(): Store {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, resetAll, signOut };
+  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, signOut };
 }
 
 /**

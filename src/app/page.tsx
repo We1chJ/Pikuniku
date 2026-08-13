@@ -21,7 +21,6 @@ export default function Dashboard() {
     log,
     settings,
     setSetting,
-    resetAll,
     signOut,
   } = useStore();
 
@@ -223,25 +222,17 @@ export default function Dashboard() {
           </label>
         </section>
 
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <button
-            onClick={resetAll}
-            className="text-xs text-muted underline underline-offset-4 hover:text-incorrect"
-          >
-            {remote ? "Delete every card" : "Reset all progress and restore the demo deck"}
-          </button>
-          {remote && (
-            <>
-              <span className="text-xs text-muted">{email}</span>
-              <button
-                onClick={() => signOut()}
-                className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
-              >
-                Sign out
-              </button>
-            </>
-          )}
-        </div>
+        {remote && (
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <span className="text-xs text-muted">{email}</span>
+            <button
+              onClick={() => signOut()}
+              className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </main>
     </>
   );

@@ -154,6 +154,10 @@ export default function Cards() {
               placeholder="猫, ねこ, or 猫(ねこ)"
               className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-2xl outline-none focus:border-primary"
             />
+            <p className="mt-1 text-[11px] text-muted">
+              <code>neko</code> → ねこ, <code>NEKO</code> → ネコ. Capitals give katakana;
+              pasted kanji is left alone.
+            </p>
 
             <label className="mt-4 block text-xs font-semibold text-muted">Meaning</label>
             <input
@@ -178,7 +182,7 @@ export default function Cards() {
                   value={reading}
                   onChange={() => {}}
                   onKeyDown={(e) => e.key === "Enter" && save()}
-                  placeholder="ねこ — romaji becomes kana"
+                  placeholder="ねこ, or KO-HI- for コーヒー"
                   className="jp mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 outline-none focus:border-primary"
                 />
                 <p className="mt-1 text-[11px] text-muted">

@@ -28,6 +28,9 @@ export default function Nav() {
           <Link href="/cards" className="hover:text-primary">
             Cards
           </Link>
+          <Link href="/lessons" className="hover:text-primary">
+            Lessons
+          </Link>
           <Link href="/review" className="hover:text-primary">
             Review
           </Link>

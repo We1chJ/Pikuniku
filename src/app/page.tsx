@@ -97,7 +97,7 @@ export default function Dashboard() {
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
-            href="/review"
+            href="/lessons"
             className="rounded-2xl bg-component p-7 text-white transition-transform hover:-translate-y-0.5"
           >
             <p className="text-sm font-semibold tracking-[0.2em] uppercase opacity-85">

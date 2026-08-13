@@ -13,6 +13,9 @@ import type { Card, Progress, SessionQuestion, TaskKind } from "./types";
 import { isDue } from "./scheduler";
 import { tasksFor } from "./store";
 
+/** Lessons are material you've never seen; reviews are material coming back. */
+export type SessionMode = "lessons" | "reviews";
+
 /** How many other questions must pass before a missed one may return. */
 export const REQUEUE_DELAY = 4;
 /** Cap on half-finished cards, to bound working-memory load. */
@@ -31,6 +34,12 @@ export function buildQueue(
   /** Remaining new items allowed today. Reviews are never withheld. */
   lessonBudget = Infinity,
   now = new Date(),
+  /**
+   * Which half of the work to queue. They're kept apart because the dashboard
+   * counts them apart: a session that silently merged both meant clicking "2
+   * reviews" started a run of 23 questions.
+   */
+  mode: SessionMode = "reviews",
 ): SessionQuestion[] {
   const queue: SessionQuestion[] = [];
   let budget = lessonBudget;
@@ -40,8 +49,11 @@ export function buildQueue(
       if (!isDue(state, now)) continue;
       if (!state) {
         // Never studied — this is a lesson, and lessons are what get paced.
+        if (mode === "reviews") continue;
         if (budget <= 0) continue;
         budget -= 1;
+      } else if (mode === "lessons") {
+        continue;
       }
       queue.push({ cardId: card.id, task, choiceDelay: 0, answered: false, incorrect: 0 });
     }

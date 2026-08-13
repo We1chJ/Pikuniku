@@ -123,9 +123,15 @@ export const STAGE_CLASS: Record<Stage | "Lesson", string> = {
   Burned: "bg-stage-burned",
 };
 
-/** "in 4 hours" / "in 3 days" — the dashboard reads better than a timestamp. */
+/**
+ * "in 4h" / "in 3d" — the dashboard reads better than a timestamp.
+ *
+ * Something never studied is *not* "available now": it's a lesson, and lessons
+ * are rationed by the daily limit. Calling it available made the card list
+ * disagree with the review count, which is the number that's actually true.
+ */
 export function untilDue(state: FsrsState | undefined, now = new Date()): string {
-  if (!state) return "available now";
+  if (!state) return "not started";
   const ms = new Date(state.due).getTime() - now.getTime();
   if (ms <= 0) return "available now";
   const hours = Math.round(ms / 3_600_000);

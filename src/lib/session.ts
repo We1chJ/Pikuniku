@@ -28,14 +28,22 @@ export function buildQueue(
   cards: Card[],
   progress: Record<string, Progress>,
   production = false,
+  /** Remaining new items allowed today. Reviews are never withheld. */
+  lessonBudget = Infinity,
   now = new Date(),
 ): SessionQuestion[] {
   const queue: SessionQuestion[] = [];
+  let budget = lessonBudget;
   for (const card of cards) {
     for (const task of tasksFor(card, production)) {
-      if (isDue(progress[card.id]?.tasks?.[task], now)) {
-        queue.push({ cardId: card.id, task, choiceDelay: 0, answered: false, incorrect: 0 });
+      const state = progress[card.id]?.tasks?.[task];
+      if (!isDue(state, now)) continue;
+      if (!state) {
+        // Never studied — this is a lesson, and lessons are what get paced.
+        if (budget <= 0) continue;
+        budget -= 1;
       }
+      queue.push({ cardId: card.id, task, choiceDelay: 0, answered: false, incorrect: 0 });
     }
   }
   for (let i = queue.length - 1; i > 0; i--) {

@@ -74,8 +74,14 @@ your own recall. The grader's verdict becomes the rating:
 Apprentice → Guru → Master → Enlightened → Burned survive as a display layer derived from
 stability, because "Burned" motivates and `stability = 47.3 days` does not.
 
+### Paced, and visible
+
+New material is capped per day, so a big import doesn't become a wall of reviews a week
+later. Reviews themselves are never withheld — they're work already owed, and deferring
+them is what breaks a schedule. An activity heatmap shows what you've actually done.
+
 <div align="center">
-<img src="docs/dashboard.jpg" alt="Dashboard" width="800">
+<img src="docs/dashboard.jpg" alt="Dashboard with the activity heatmap" width="800">
 </div>
 
 ### Missed questions can't come straight back
@@ -94,8 +100,14 @@ surfaced for editing — a fix a fixed-curriculum app cannot offer.
 
 - **Two-field card entry.** Paste `猫(ねこ)` and the reading is split out for you; the card
   type is inferred; the reading field only appears when the word actually hides one.
+
+  <div align="center">
+  <img src="docs/cards.jpg" alt="Adding a card" width="760">
+  </div>
+
 - **Kana input.** Romaji becomes kana as you type, via WaniKani's own
-  [WanaKana](https://github.com/WaniKani/WanaKana). Katakana cards switch automatically.
+  [WanaKana](https://github.com/WaniKani/WanaKana) — `neko` → ねこ, and capitals give
+  katakana, so `KO-HI-` → コーヒー.
 - **Pronunciation** through the browser's speech synthesis — no audio files, and it speaks
   the *reading*, since synthesisers guess kanji and get 大人 wrong.
 - **English → Japanese** production questions, optional. A word that legitimately fits the

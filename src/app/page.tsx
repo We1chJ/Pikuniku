@@ -3,7 +3,9 @@
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Landing from "@/components/Landing";
+import Heatmap from "@/components/Heatmap";
 import { useStore, tasksFor } from "@/lib/store";
+import { currentStreak, lessonsStartedToday } from "@/lib/stats";
 import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib/scheduler";
 
 /** Anki's default is 8; a smaller number surfaces problems sooner in a small deck. */
@@ -41,8 +43,15 @@ export default function Dashboard() {
     tasksFor(c, settings.production).map((task) => ({ card: c, task, state: progress[c.id]?.tasks?.[task] })),
   );
 
-  const lessons = questions.filter((q) => !q.state);
   const reviews = questions.filter((q) => q.state && isDue(q.state, now));
+
+  // Lessons shown is what's actually available today, not the whole backlog —
+  // a number you can't act on is just discouraging.
+  const startedToday = lessonsStartedToday(log, now);
+  const remainingToday = Math.max(0, settings.dailyLessons - startedToday);
+  const unstarted = questions.filter((q) => !q.state).length;
+  const lessonsAvailable = Math.min(unstarted, remainingToday);
+  const streak = currentStreak(log, now);
 
   const stageCounts = STAGES.reduce(
     (acc, s) => ({ ...acc, [s]: 0 }),
@@ -93,8 +102,12 @@ export default function Dashboard() {
             <p className="text-sm font-semibold tracking-[0.2em] uppercase opacity-85">
               Lessons
             </p>
-            <p className="mt-2 text-6xl font-bold">{lessons.length}</p>
-            <p className="mt-2 text-sm opacity-85">Cards you haven&rsquo;t met yet</p>
+            <p className="mt-2 text-6xl font-bold">{lessonsAvailable}</p>
+            <p className="mt-2 text-sm opacity-85">
+              {remainingToday === 0
+                ? `Daily limit reached — ${unstarted} waiting`
+                : `${startedToday}/${settings.dailyLessons} started today`}
+            </p>
           </Link>
           <Link
             href="/review"
@@ -118,6 +131,18 @@ export default function Dashboard() {
                 <p className="mt-1 text-xs text-muted">{s}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="mt-10">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-bold tracking-wide uppercase">Activity</h2>
+            <p className="text-xs text-muted">
+              {streak > 0 ? `${streak}-day streak` : "No streak yet"} · {log.length} answers
+            </p>
+          </div>
+          <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+            <Heatmap log={log} />
           </div>
         </section>
 
@@ -203,6 +228,27 @@ export default function Dashboard() {
 
         <section className="mt-10">
           <h2 className="text-sm font-bold tracking-wide uppercase">Settings</h2>
+          <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface p-5">
+            <span>
+              <span className="text-sm font-semibold">New items per day</span>
+              <span className="mt-1 block text-xs text-muted">
+                Caps how much new material enters your queue. Reviews are never held
+                back — they&rsquo;re work already owed. Set 0 to pause new lessons while
+                you catch up.
+              </span>
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={settings.dailyLessons}
+              onChange={(e) =>
+                setSetting("dailyLessons", Math.max(0, Number(e.target.value) || 0))
+              }
+              className="w-20 shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-center outline-none focus:border-primary"
+            />
+          </div>
+
           <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-5">
             <input
               type="checkbox"

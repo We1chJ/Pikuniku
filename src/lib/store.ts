@@ -39,9 +39,15 @@ export interface Settings {
    * most cards, so turning it on meaningfully increases the daily load.
    */
   production: boolean;
+  /**
+   * How many new items may be started per day. Reviews are never capped —
+   * they're work already owed, and deferring them defeats the scheduling.
+   * 0 means no new lessons at all; useful for clearing a backlog.
+   */
+  dailyLessons: number;
 }
 
-const DEFAULT_SETTINGS: Settings = { autoplay: true, production: false };
+const DEFAULT_SETTINGS: Settings = { autoplay: true, production: false, dailyLessons: 10 };
 
 export interface Snapshot {
   ready: boolean;

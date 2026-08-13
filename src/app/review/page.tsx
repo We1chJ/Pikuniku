@@ -8,6 +8,7 @@ import SignIn from "@/components/SignIn";
 import { useStore, stateFor, newState } from "@/lib/store";
 import { applyRating, outcomeToRating } from "@/lib/scheduler";
 import { applyAnswer, buildQueue, pickNext, remaining } from "@/lib/session";
+import { lessonsStartedToday } from "@/lib/stats";
 import type { Card, Progress, SessionQuestion, TaskKind } from "@/lib/types";
 import type { Store } from "@/lib/store";
 
@@ -25,7 +26,12 @@ export default function Review() {
 function Session({ store }: { store: Store }) {
   const { cards, progress, recordAnswer } = store;
   const [queue, setQueue] = useState<SessionQuestion[]>(() =>
-    buildQueue(cards, progress, store.settings.production),
+    buildQueue(
+      cards,
+      progress,
+      store.settings.production,
+      Math.max(0, store.settings.dailyLessons - lessonsStartedToday(store.log)),
+    ),
   );
   const [lastCardId, setLastCardId] = useState<string | null>(null);
   const [tally, setTally] = useState({ correct: 0, wrong: 0 });

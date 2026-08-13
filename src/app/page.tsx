@@ -4,6 +4,7 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Landing from "@/components/Landing";
 import Heatmap from "@/components/Heatmap";
+import LearnedChart from "@/components/LearnedChart";
 import { useStore, tasksFor } from "@/lib/store";
 import { currentStreak, dailyBudget } from "@/lib/stats";
 import { STAGES, STAGE_CLASS, stageOf, isDue, untilDue, type Stage } from "@/lib/scheduler";
@@ -167,8 +168,15 @@ export default function Dashboard() {
               {streak > 0 ? `${streak}-day streak` : "No streak yet"} · {log.length} answers
             </p>
           </div>
-          <div className="mt-4 rounded-xl border border-border bg-surface p-4">
-            <Heatmap log={log} />
+          {/* Effort on the left, progress on the right. The heatmap takes its
+              natural width — 26 fixed-width weeks — and the curve takes the rest. */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)]">
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <Heatmap log={log} />
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-4">
+              <LearnedChart log={log} />
+            </div>
           </div>
         </section>
 

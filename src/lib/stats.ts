@@ -16,22 +16,28 @@ export function dayKey(d: Date): string {
 }
 
 /**
- * How many *new* items were started today.
+ * When each question was first ever answered.
  *
- * A lesson is the first time a question is ever answered, so it's the earliest
- * log entry for that (card, task) pair — not simply an entry dated today, which
- * would count every ordinary review as a lesson.
+ * This is what "learning an item" means here: the earliest log entry for a
+ * (card, task) pair — not simply an entry dated today, which would count every
+ * ordinary review as a lesson. Both the daily budget and the growth curve are
+ * counted from it, so they agree by construction.
  */
-export function lessonsStartedToday(log: ReviewLogEntry[], now = new Date()): number {
+function firstSeenAt(log: ReviewLogEntry[]): Map<string, number> {
   const firstSeen = new Map<string, number>();
   for (const entry of log) {
     const key = `${entry.cardId}:${entry.task}`;
     const at = firstSeen.get(key);
     if (at === undefined || entry.at < at) firstSeen.set(key, entry.at);
   }
+  return firstSeen;
+}
+
+/** How many *new* items were started today. */
+export function lessonsStartedToday(log: ReviewLogEntry[], now = new Date()): number {
   const today = dayKey(now);
   let count = 0;
-  for (const at of firstSeen.values()) {
+  for (const at of firstSeenAt(log).values()) {
     if (dayKey(new Date(at)) === today) count += 1;
   }
   return count;
@@ -63,36 +69,74 @@ export function dailyBudget(
   return { allowance, started, remaining: Math.max(0, allowance - started) };
 }
 
-export interface DayCount {
+/** Half a year — the window both activity charts cover. */
+export const ACTIVITY_DAYS = 26 * 7;
+
+export interface DayStat {
   key: string;
   date: Date;
+  /** Every answer given that day, typo-forgiven ones included. */
   count: number;
+  /**
+   * Answers that count toward accuracy, and how many were clean. Typo-forgiven
+   * answers are excluded from both, matching the dashboard's overall figure.
+   */
+  scored: number;
+  precise: number;
+  /** Questions seen for the very first time that day. */
+  learned: number;
+  /** Distinct questions ever started, as of the end of this day. */
+  total: number;
 }
 
 /**
- * Answers per day for the last `days` days, oldest first, with empty days
- * included — a heatmap needs the gaps as much as the activity.
+ * Per-day history for the last `days` days, oldest first, empty days included —
+ * a heatmap needs the gaps as much as the activity, and a line through them has
+ * to be flat rather than absent.
  */
-export function answersByDay(
+export function dailyStats(
   log: ReviewLogEntry[],
   days: number,
   now = new Date(),
-): DayCount[] {
-  const counts = new Map<string, number>();
+): DayStat[] {
+  const counts = new Map<string, { count: number; scored: number; precise: number }>();
   for (const entry of log) {
     const key = dayKey(new Date(entry.at));
-    counts.set(key, (counts.get(key) ?? 0) + 1);
+    const day = counts.get(key) ?? { count: 0, scored: 0, precise: 0 };
+    day.count += 1;
+    if (entry.outcome !== "imprecise") {
+      day.scored += 1;
+      if (entry.outcome === "precise") day.precise += 1;
+    }
+    counts.set(key, day);
   }
 
-  const out: DayCount[] = [];
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - (days - 1));
+
+  // Anything learned before the window still counts toward the running total,
+  // or the curve would start at zero and understate everything after it.
+  const learnedOn = new Map<string, number>();
+  let total = 0;
+  for (const at of firstSeenAt(log).values()) {
+    if (at < start.getTime()) {
+      total += 1;
+      continue;
+    }
+    const key = dayKey(new Date(at));
+    learnedOn.set(key, (learnedOn.get(key) ?? 0) + 1);
+  }
+
+  const out: DayStat[] = [];
   for (let i = 0; i < days; i++) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
     const key = dayKey(date);
-    out.push({ key, date, count: counts.get(key) ?? 0 });
+    const day = counts.get(key) ?? { count: 0, scored: 0, precise: 0 };
+    const learned = learnedOn.get(key) ?? 0;
+    total += learned;
+    out.push({ key, date, ...day, learned, total });
   }
   return out;
 }

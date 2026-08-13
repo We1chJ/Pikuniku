@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/logo-color.png" alt="" width="120">
+<img src="src/app/icon.png" alt="" width="120">
 
 # Pikuniku
 

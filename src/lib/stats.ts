@@ -37,6 +37,32 @@ export function lessonsStartedToday(log: ReviewLogEntry[], now = new Date()): nu
   return count;
 }
 
+export interface DailyBudget {
+  /** Today's ceiling, including anything granted by "learn more". */
+  allowance: number;
+  started: number;
+  remaining: number;
+}
+
+/**
+ * The single answer to "how many new items may I start right now".
+ *
+ * Both the dashboard and the review queue read this, so the number shown and
+ * the number enforced can't drift apart.
+ */
+export function dailyBudget(
+  settings: { dailyLessons: number; bonusDay: string; bonusCount: number },
+  log: ReviewLogEntry[],
+  now = new Date(),
+): DailyBudget {
+  // The bonus is stamped with the day it was granted, so it expires by itself
+  // at midnight rather than needing anything to reset it.
+  const bonus = settings.bonusDay === dayKey(now) ? settings.bonusCount : 0;
+  const allowance = settings.dailyLessons + bonus;
+  const started = lessonsStartedToday(log, now);
+  return { allowance, started, remaining: Math.max(0, allowance - started) };
+}
+
 export interface DayCount {
   key: string;
   date: Date;

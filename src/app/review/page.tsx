@@ -5,10 +5,10 @@ import Link from "next/link";
 import QuizPanel from "@/components/QuizPanel";
 import AutoplayToggle from "@/components/AutoplayToggle";
 import SignIn from "@/components/SignIn";
-import { useStore, stateFor, newState } from "@/lib/store";
+import { useStore, stateFor, newState, tasksFor } from "@/lib/store";
 import { applyRating, outcomeToRating } from "@/lib/scheduler";
 import { applyAnswer, buildQueue, pickNext, remaining } from "@/lib/session";
-import { lessonsStartedToday } from "@/lib/stats";
+import { dailyBudget } from "@/lib/stats";
 import type { Card, Progress, SessionQuestion, TaskKind } from "@/lib/types";
 import type { Store } from "@/lib/store";
 
@@ -30,7 +30,7 @@ function Session({ store }: { store: Store }) {
       cards,
       progress,
       store.settings.production,
-      Math.max(0, store.settings.dailyLessons - lessonsStartedToday(store.log)),
+      dailyBudget(store.settings, store.log).remaining,
     ),
   );
   const [lastCardId, setLastCardId] = useState<string | null>(null);
@@ -39,7 +39,20 @@ function Session({ store }: { store: Store }) {
   const current = pickNext(queue, lastCardId);
   const card = current ? cards.find((c) => c.id === current.cardId) : undefined;
 
-  if (!current || !card) return <Summary tally={tally} />;
+  if (!current || !card) {
+    return (
+      <Summary
+        tally={tally}
+        store={store}
+        // Granting alone would only change a setting; the queue was built once,
+        // so it has to be refilled or the button appears to do nothing.
+        onMore={(n) => {
+          store.grantExtraLessons(n);
+          setQueue(buildQueue(cards, progress, store.settings.production, n));
+        }}
+      />
+    );
+  }
 
   return (
     <main className="relative flex flex-1 flex-col">
@@ -104,8 +117,24 @@ function commit(
   recordAnswer(card.id, task, input, outcome, applyRating(prior, rating));
 }
 
-function Summary({ tally }: { tally: { correct: number; wrong: number } }) {
+function Summary({
+  tally,
+  store,
+  onMore,
+}: {
+  tally: { correct: number; wrong: number };
+  store: Store;
+  onMore: (n: number) => void;
+}) {
   const total = tally.correct + tally.wrong;
+  // Anything never studied that today's cap is holding back. Offering more here
+  // is the moment it's wanted — you've just finished and want to keep going.
+  const held = store.cards.flatMap((c) =>
+    tasksFor(c, store.settings.production).filter((t) => !stateFor(store.progress, c.id, t)),
+  ).length;
+  const budget = dailyBudget(store.settings, store.log);
+  const capped = held > 0 && budget.remaining === 0;
+
   return (
     <main className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center px-4 py-20 text-center">
       <p className="jp text-6xl">{total === 0 ? "空" : "終"}</p>
@@ -123,6 +152,22 @@ function Summary({ tally }: { tally: { correct: number; wrong: number } }) {
           the next batch is due.
         </p>
       )}
+
+      {capped && (
+        <div className="mt-6 rounded-xl border border-border bg-surface px-5 py-4">
+          <p className="text-sm text-muted">
+            {held} new {held === 1 ? "item is" : "items are"} waiting, held back by
+            today&rsquo;s limit of {budget.allowance}.
+          </p>
+          <button
+            onClick={() => onMore(5)}
+            className="mt-3 rounded-lg bg-component px-4 py-2 text-sm font-semibold text-white"
+          >
+            Learn 5 more today
+          </button>
+        </div>
+      )}
+
       <div className="mt-8 flex gap-3">
         <Link
           href="/"

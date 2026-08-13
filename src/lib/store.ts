@@ -21,6 +21,7 @@ import type { Card, Progress, ReviewLogEntry, TaskKind } from "./types";
 import { SEED_CARDS } from "./seed";
 import { isProducible } from "./cardinfer";
 import { newState } from "./scheduler";
+import { dayKey } from "./stats";
 import { supabase, isRemote } from "./supabase";
 import * as remote from "./remote";
 
@@ -45,9 +46,21 @@ export interface Settings {
    * 0 means no new lessons at all; useful for clearing a backlog.
    */
   dailyLessons: number;
+  /**
+   * Extra lessons granted for one specific day by pressing "learn more".
+   * Stamped with the day so it expires on its own at midnight.
+   */
+  bonusDay: string;
+  bonusCount: number;
 }
 
-const DEFAULT_SETTINGS: Settings = { autoplay: true, production: false, dailyLessons: 10 };
+const DEFAULT_SETTINGS: Settings = {
+  autoplay: true,
+  production: false,
+  dailyLessons: 10,
+  bonusDay: "",
+  bonusCount: 0,
+};
 
 export interface Snapshot {
   ready: boolean;
@@ -290,6 +303,19 @@ export function recordAnswer(
   write(KEYS.log, log);
 }
 
+/** Raise today's ceiling without touching the standing daily limit. */
+export function grantExtraLessons(n: number) {
+  const today = dayKey(new Date());
+  const current = snapshot.settings;
+  const settings = {
+    ...current,
+    bonusDay: today,
+    bonusCount: (current.bonusDay === today ? current.bonusCount : 0) + n,
+  };
+  write(KEYS.settings, settings);
+  set({ settings });
+}
+
 export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
   const settings = { ...snapshot.settings, [key]: value };
   write(KEYS.settings, settings);
@@ -303,12 +329,13 @@ export interface Store extends Snapshot {
   deleteCard: typeof deleteCard;
   recordAnswer: typeof recordAnswer;
   setSetting: typeof setSetting;
+  grantExtraLessons: typeof grantExtraLessons;
   signOut: typeof signOut;
 }
 
 export function useStore(): Store {
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, signOut };
+  return { ...snap, addCard, deleteCard, recordAnswer, setSetting, grantExtraLessons, signOut };
 }
 
 /**

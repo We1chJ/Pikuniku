@@ -230,43 +230,64 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-10">
-          <h2 className="text-sm font-bold tracking-wide uppercase">All cards</h2>
-          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
-            {cards.map((c) => {
-              const tasks = tasksFor(c, settings.production);
-              const states = tasks.map((t) => progress[c.id]?.tasks?.[t]);
-              // A card is only as done as its least-studied task, so the row
-              // reports the whole card: anything unstarted is a lesson and says
-              // so, and only once they're all started does a due time — the
-              // soonest of them — mean the card is waiting on a review.
-              const unstarted = states.filter((s) => !s).length;
-              const soonest = states
-                .filter((s) => !!s)
-                .sort((a, b) => Date.parse(a.due) - Date.parse(b.due))[0];
+          {/* A plain <details>: the open state lives in the DOM, so there's no
+              second copy of it in React to fall out of step, and it comes with
+              keyboard and screen-reader behaviour already correct. */}
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+              <svg
+                viewBox="0 0 12 12"
+                aria-hidden
+                className="h-3 w-3 text-muted transition-transform group-open:rotate-90"
+              >
+                <path d="M4 2l5 4-5 4z" fill="currentColor" />
+              </svg>
+              <h2 className="text-sm font-bold tracking-wide uppercase">All cards</h2>
+              <span className="ml-auto text-xs text-muted">{cards.length}</span>
+            </summary>
+            {/* Capped and scrolled internally, so opening it can never push the
+                rest of the dashboard off the page however big the deck gets. */}
+            <div className="mt-4 max-h-96 overflow-y-auto rounded-xl border border-border bg-surface">
+              {cards.map((c) => {
+                const tasks = tasksFor(c, settings.production);
+                const states = tasks.map((t) => progress[c.id]?.tasks?.[t]);
+                // A card is only as done as its least-studied task, so the row
+                // reports the whole card: anything unstarted is a lesson and says
+                // so, and only once they're all started does a due time — the
+                // soonest of them — mean the card is waiting on a review.
+                const unstarted = states.filter((s) => !s).length;
+                const soonest = states
+                  .filter((s) => !!s)
+                  .sort((a, b) => Date.parse(a.due) - Date.parse(b.due))[0];
 
-              return (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-0"
-                >
-                  <span className="jp w-12 shrink-0 text-2xl">{c.front}</span>
-                  <span className="flex-1 truncate text-sm">{c.meanings[0]}</span>
-                  {tasks.map((t, i) => (
-                    <span
-                      key={t}
-                      className={`${STAGE_CLASS[stageOf(states[i])]} rounded-full px-2 py-0.5 text-[10px] font-semibold text-white`}
-                      title={`${t}: ${untilDue(states[i])}`}
-                    >
-                      {t === "meaning" ? "M" : t === "reading" ? "R" : "P"}
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-4 border-b border-border px-4 py-3 last:border-0"
+                  >
+                    {/* Never wrap the word: a fixed 3rem column folded ぎゅうにゅう
+                        onto three lines and made every row a different height. */}
+                    <span className="jp min-w-16 shrink-0 whitespace-nowrap text-2xl">
+                      {c.front}
                     </span>
-                  ))}
-                  <span className="w-24 shrink-0 text-right text-xs text-muted">
-                    {unstarted > 0 ? `${unstarted} to learn` : untilDue(soonest)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                    <span className="flex-1 truncate text-sm">{c.meanings[0]}</span>
+                    {tasks.map((t, i) => (
+                      <span
+                        key={t}
+                        className={`${STAGE_CLASS[stageOf(states[i])]} rounded-full px-2 py-0.5 text-[10px] font-semibold text-white`}
+                        title={`${t}: ${untilDue(states[i])}`}
+                      >
+                        {t === "meaning" ? "M" : t === "reading" ? "R" : "P"}
+                      </span>
+                    ))}
+                    <span className="w-24 shrink-0 text-right text-xs text-muted">
+                      {unstarted > 0 ? `${unstarted} to learn` : untilDue(soonest)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         </section>
 
         <section className="mt-10">

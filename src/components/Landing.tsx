@@ -55,8 +55,8 @@ export default function Landing() {
             grader, the stages — pointed at material you write yourself.
           </p>
           <div className="mt-10 max-w-sm">
-            <SignInForm autoFocus />
-            <p className="mt-3 text-xs text-muted">
+            <SignInForm />
+            <p className="mt-3 text-center text-xs text-muted">
               Your cards sync across every device you sign in on.
             </p>
           </div>

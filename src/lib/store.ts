@@ -198,25 +198,30 @@ const getServerSnapshot = () => EMPTY;
  * Auth
  * ------------------------------------------------------------------ */
 
-export async function signIn(email: string, password: string): Promise<string | null> {
-  if (!supabase) return "Supabase is not configured.";
+/** `ok` separates "something went wrong" from "here's what happens next". */
+export type AuthResult = { ok: boolean; message: string | null };
+
+export async function signIn(email: string, password: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, message: "Supabase is not configured." };
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   // On success the auth listener reloads the data, so there's nothing to report.
-  return error ? error.message : null;
+  return error ? { ok: false, message: error.message } : { ok: true, message: null };
 }
 
-export async function signUp(email: string, password: string): Promise<string | null> {
-  if (!supabase) return "Supabase is not configured.";
+export async function signUp(email: string, password: string): Promise<AuthResult> {
+  if (!supabase) return { ok: false, message: "Supabase is not configured." };
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { emailRedirectTo: window.location.href },
   });
-  if (error) return error.message;
+  if (error) return { ok: false, message: error.message };
   // With email confirmation enabled, signUp returns a user but no session —
   // the account exists but can't be used until the link is clicked.
-  if (!data.session) return `Account created. Confirm it via the link sent to ${email}.`;
-  return null;
+  if (!data.session) {
+    return { ok: true, message: `Account created. Check ${email} for a confirmation link.` };
+  }
+  return { ok: true, message: null };
 }
 
 export async function signOut() {

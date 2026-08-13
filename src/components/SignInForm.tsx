@@ -1,78 +1,132 @@
 "use client";
 
-import { useState } from "react";
-import { signIn, signUp } from "@/lib/store";
+import { useId, useState } from "react";
+import { signIn, signUp, type AuthResult } from "@/lib/store";
 
 /**
- * Email and password. Shared by the landing page and the deep-link sign-in
- * screen so the two can't drift apart.
+ * A real <form> with real labels.
  *
- * On success nothing is reported here — the auth listener in the store reloads
- * the data and the page swaps itself out.
+ * Both matter more than they look: password managers key off form semantics and
+ * autocomplete hints to offer the right credential, and a login box with no
+ * labels — just grey placeholders that vanish as you type — is what phishing
+ * pages look like. Getting this wrong makes an honest app feel untrustworthy.
  */
 export default function SignInForm({ autoFocus = false }: { autoFocus?: boolean }) {
+  const emailId = useId();
+  const passwordId = useId();
   const [creating, setCreating] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [reveal, setReveal] = useState(false);
+  const [result, setResult] = useState<AuthResult | null>(null);
   const [busy, setBusy] = useState(false);
 
   const ready = email.trim() !== "" && password !== "";
 
-  async function submit() {
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
     if (!ready || busy) return;
     setBusy(true);
-    setStatus(null);
-    const result = creating
-      ? await signUp(email.trim(), password)
-      : await signIn(email.trim(), password);
-    setStatus(result);
+    setResult(null);
+    setResult(
+      creating ? await signUp(email.trim(), password) : await signIn(email.trim(), password),
+    );
     setBusy(false);
   }
 
+  function switchMode(next: boolean) {
+    setCreating(next);
+    setResult(null);
+  }
+
+  const tab = "flex-1 rounded-md px-3 py-1.5 text-sm font-semibold transition-colors";
+
   return (
-    <div className="w-full">
-      <div className="flex flex-col gap-2">
-        <input
-          type="email"
-          autoComplete="email"
-          autoFocus={autoFocus}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="you@example.com"
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:border-primary"
-        />
-        <input
-          type="password"
-          // Tells a password manager whether to offer a saved password or a new one.
-          autoComplete={creating ? "new-password" : "current-password"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="Password"
-          className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:border-primary"
-        />
+    <div className="w-full rounded-2xl border border-border bg-surface p-6 shadow-lg">
+      <div className="flex gap-1 rounded-lg bg-background p-1">
         <button
-          onClick={submit}
-          disabled={!ready || busy}
-          className="rounded-xl bg-foreground px-6 py-3 text-sm font-semibold text-background disabled:opacity-40"
+          type="button"
+          onClick={() => switchMode(false)}
+          className={`${tab} ${creating ? "text-muted hover:text-foreground" : "bg-surface shadow-sm"}`}
         >
-          {busy ? "…" : creating ? "Create account" : "Sign in"}
+          Sign in
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode(true)}
+          className={`${tab} ${creating ? "bg-surface shadow-sm" : "text-muted hover:text-foreground"}`}
+        >
+          Create account
         </button>
       </div>
 
-      <button
-        onClick={() => {
-          setCreating(!creating);
-          setStatus(null);
-        }}
-        className="mt-3 text-xs text-muted underline underline-offset-4 hover:text-foreground"
-      >
-        {creating ? "Already have an account? Sign in" : "No account yet? Create one"}
-      </button>
+      <form onSubmit={submit} className="mt-5">
+        <label htmlFor={emailId} className="block text-xs font-semibold text-muted">
+          Email
+        </label>
+        <input
+          id={emailId}
+          name="email"
+          type="email"
+          autoComplete="email"
+          autoFocus={autoFocus}
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-2.5 outline-none transition-colors focus:border-primary"
+        />
 
-      {status && <p className="mt-3 text-sm text-incorrect">{status}</p>}
+        <label
+          htmlFor={passwordId}
+          className="mt-4 block text-xs font-semibold text-muted"
+        >
+          Password
+          {creating && <span className="font-normal"> · at least 6 characters</span>}
+        </label>
+        <div className="relative mt-1.5">
+          <input
+            id={passwordId}
+            name="password"
+            type={reveal ? "text" : "password"}
+            autoComplete={creating ? "new-password" : "current-password"}
+            required
+            minLength={creating ? 6 : undefined}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="w-full rounded-xl border border-border bg-background py-2.5 pr-16 pl-4 outline-none transition-colors focus:border-primary"
+          />
+          <button
+            type="button"
+            onClick={() => setReveal(!reveal)}
+            // Typos in a masked field are the usual reason a correct password
+            // "fails", and there's nobody to shoulder-surf a personal tool.
+            className="absolute top-1/2 right-3 -translate-y-1/2 text-xs font-semibold text-muted hover:text-foreground"
+          >
+            {reveal ? "Hide" : "Show"}
+          </button>
+        </div>
+
+        {result?.message && (
+          <p
+            role="alert"
+            className={`mt-4 rounded-lg px-3 py-2 text-sm ${
+              result.ok ? "bg-correct/10 text-correct" : "bg-incorrect/10 text-incorrect"
+            }`}
+          >
+            {result.message}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={!ready || busy}
+          className="mt-5 w-full rounded-xl bg-foreground py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          {busy ? "One moment…" : creating ? "Create account" : "Sign in"}
+        </button>
+      </form>
     </div>
   );
 }

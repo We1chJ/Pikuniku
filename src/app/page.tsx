@@ -41,16 +41,25 @@ export default function Dashboard() {
   if (!signedIn) return <Landing />;
 
   const now = new Date();
-  const questions = cards.flatMap((c) =>
-    tasksFor(c, settings.production).map((task) => ({ card: c, task, state: progress[c.id]?.tasks?.[task] })),
-  );
+  // Everything on this page counts *words*, not questions. A word tested four
+  // ways is still one thing to learn, and the tiles have to say the same number
+  // the session will actually give you.
+  const words = cards.map((c) => {
+    const states = tasksFor(c, settings.production).map((task) => progress[c.id]?.tasks?.[task]);
+    return {
+      card: c,
+      states,
+      unstarted: states.some((s) => !s),
+      started: states.filter((s) => !!s),
+    };
+  });
 
-  const reviews = questions.filter((q) => q.state && isDue(q.state, now));
+  const reviews = words.filter((w) => w.started.some((s) => isDue(s, now)));
 
   // Lessons shown is what's actually available today, not the whole backlog —
   // a number you can't act on is just discouraging.
   const budget = dailyBudget(settings, log, now);
-  const unstarted = questions.filter((q) => !q.state).length;
+  const unstarted = words.filter((w) => w.unstarted).length;
   const lessonsAvailable = Math.min(unstarted, budget.remaining);
   const streak = currentStreak(log, now);
 
@@ -58,21 +67,27 @@ export default function Dashboard() {
     (acc, s) => ({ ...acc, [s]: 0 }),
     {} as Record<Stage, number>,
   );
-  for (const q of questions) {
-    const stage = stageOf(q.state);
-    if (stage !== "Lesson") stageCounts[stage] += 1;
+  for (const w of words) {
+    // A word sits at the stage of its weakest form: knowing 猫's meaning cold
+    // while its reading keeps lapsing is not a Burned word.
+    const stages = w.started
+      .map((s) => STAGES.indexOf(stageOf(s) as Stage))
+      .filter((i) => i >= 0);
+    if (stages.length > 0) stageCounts[STAGES[Math.min(...stages)]] += 1;
   }
 
   // Next 24 hours, bucketed by hour — which reads as clean bars precisely because
   // due times are truncated to the hour when they're scheduled.
+  // A word lands in the hour its *first* form comes due — that's the hour it
+  // pulls you back in, and counting it again for each later form would inflate
+  // every bar past the number the Reviews tile promises.
+  const nextDue = words
+    .map((w) => Math.min(...w.started.map((s) => Date.parse(s.due))))
+    .filter((t) => Number.isFinite(t));
   const forecast = Array.from({ length: 24 }, (_, h) => {
-    const from = new Date(now.getTime() + h * 3_600_000);
-    const to = new Date(from.getTime() + 3_600_000);
-    const count = questions.filter((q) => {
-      if (!q.state) return false;
-      const due = new Date(q.state.due);
-      return due >= from && due < to;
-    }).length;
+    const from = now.getTime() + h * 3_600_000;
+    const to = from + 3_600_000;
+    const count = nextDue.filter((due) => due >= from && due < to).length;
     return { hour: (now.getHours() + h + 1) % 24, count };
   });
   const peak = Math.max(1, ...forecast.map((f) => f.count));
@@ -137,7 +152,7 @@ export default function Dashboard() {
 
         {/* Pacing sits with the counts it governs, not buried in settings. */}
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm">
-          <span className="text-muted">New items per day</span>
+          <span className="text-muted">New words per day</span>
           <input
             type="number"
             min={0}
@@ -255,7 +270,7 @@ export default function Dashboard() {
                 // reports the whole card: anything unstarted is a lesson and says
                 // so, and only once they're all started does a due time — the
                 // soonest of them — mean the card is waiting on a review.
-                const unstarted = states.filter((s) => !s).length;
+                const unstarted = states.some((s) => !s);
                 const soonest = states
                   .filter((s) => !!s)
                   .sort((a, b) => Date.parse(a.due) - Date.parse(b.due))[0];
@@ -281,7 +296,7 @@ export default function Dashboard() {
                       </span>
                     ))}
                     <span className="w-24 shrink-0 text-right text-xs text-muted">
-                      {unstarted > 0 ? `${unstarted} to learn` : untilDue(soonest)}
+                      {unstarted ? "to learn" : untilDue(soonest)}
                     </span>
                   </div>
                 );

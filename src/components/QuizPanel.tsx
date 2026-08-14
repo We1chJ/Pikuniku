@@ -50,7 +50,6 @@ export default function QuizPanel({
   deck,
   onResolved,
   onAlias,
-  progressLabel,
   autoplay = false,
 }: {
   card: Card;
@@ -60,7 +59,6 @@ export default function QuizPanel({
   onResolved: (outcome: GradeOutcome, input: string, elapsedMs: number) => void;
   /** Widen the card so the answer just rejected is accepted from now on. */
   onAlias: (cardId: string, patch: Partial<Card>) => void;
-  progressLabel?: string;
   /** Speak the reading automatically when the answer comes back correct. */
   autoplay?: boolean;
 }) {
@@ -239,11 +237,6 @@ export default function QuizPanel({
       <div
         className={`${TYPE_BG[card.type]} flex flex-col items-center justify-center px-6 py-16 text-white`}
       >
-        {progressLabel && (
-          <p className="mb-4 text-xs font-semibold tracking-[0.2em] uppercase opacity-80">
-            {progressLabel}
-          </p>
-        )}
         {/* Production shows the English instead — the whole point is that the
             Japanese is what you have to come up with. */}
         {task === "production" ? (

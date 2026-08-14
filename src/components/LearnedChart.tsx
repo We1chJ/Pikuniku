@@ -61,7 +61,7 @@ export default function LearnedChart({ log }: { log: ReviewLogEntry[] }) {
     setHover(i);
     setTip(
       tipAt(rect.left + (x(i) / 100) * rect.width, rect.top + (y(day.total) / 100) * rect.height, dayLabel(day.date), [
-        `${day.total} item${day.total === 1 ? "" : "s"} learned`,
+        `${day.total} word${day.total === 1 ? "" : "s"} learned`,
         day.learned > 0 ? `+${day.learned} new that day` : "nothing new that day",
       ]),
     );
@@ -75,7 +75,7 @@ export default function LearnedChart({ log }: { log: ReviewLogEntry[] }) {
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <p className="text-xs font-semibold text-muted">Items learned</p>
+        <p className="text-xs font-semibold text-muted">Words learned</p>
         <p className="text-xs text-muted">{days[days.length - 1].total} total</p>
       </div>
 

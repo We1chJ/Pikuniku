@@ -31,7 +31,7 @@ export function buildQueue(
   cards: Card[],
   progress: Record<string, Progress>,
   production = false,
-  /** Remaining new items allowed today. Reviews are never withheld. */
+  /** Remaining new *words* allowed today. Reviews are never withheld. */
   lessonBudget = Infinity,
   now = new Date(),
   /**
@@ -44,17 +44,26 @@ export function buildQueue(
   const queue: SessionQuestion[] = [];
   let budget = lessonBudget;
   for (const card of cards) {
-    for (const task of tasksFor(card, production)) {
-      const state = progress[card.id]?.tasks?.[task];
-      if (!isDue(state, now)) continue;
-      if (!state) {
-        // Never studied — this is a lesson, and lessons are what get paced.
-        if (mode === "reviews") continue;
-        if (budget <= 0) continue;
-        budget -= 1;
-      } else if (mode === "lessons") {
-        continue;
-      }
+    const tasks = tasksFor(card, production);
+    // Never studied → a lesson, and lessons are what get paced. Studied and due
+    // → a review. A card can hold both, which is why they're split rather than
+    // filtered from one list.
+    const wanted =
+      mode === "lessons"
+        ? tasks.filter((t) => !progress[card.id]?.tasks?.[t])
+        : tasks.filter((t) => {
+            const state = progress[card.id]?.tasks?.[t];
+            return state && isDue(state, now);
+          });
+    if (wanted.length === 0) continue;
+    // The budget is spent per *word*, not per question, and buys every way that
+    // word is tested. Charging per question meant turning on English → Japanese
+    // silently cut a five-lesson day down to three words.
+    if (mode === "lessons") {
+      if (budget <= 0) continue;
+      budget -= 1;
+    }
+    for (const task of wanted) {
       queue.push({ cardId: card.id, task, choiceDelay: 0, answered: false, incorrect: 0 });
     }
   }
@@ -129,6 +138,19 @@ export function applyAnswer(
   });
 }
 
-export function remaining(queue: SessionQuestion[]): number {
-  return queue.filter((q) => !q.answered).length;
+/**
+ * How far through the session you are, counted in words.
+ *
+ * A word only lands once every way it's tested has been answered, so the bar
+ * moves in whole steps you can feel — the WaniKani reading of "done", rather
+ * than a count that jumps by a third whenever a card has three questions.
+ */
+export function wordProgress(queue: SessionQuestion[]): { done: number; total: number } {
+  const pending = new Set<string>();
+  const all = new Set<string>();
+  for (const q of queue) {
+    all.add(q.cardId);
+    if (!q.answered) pending.add(q.cardId);
+  }
+  return { done: all.size - pending.size, total: all.size };
 }

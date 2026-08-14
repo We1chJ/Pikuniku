@@ -16,24 +16,25 @@ export function dayKey(d: Date): string {
 }
 
 /**
- * When each question was first ever answered.
+ * When each *word* was first ever answered.
  *
- * This is what "learning an item" means here: the earliest log entry for a
- * (card, task) pair — not simply an entry dated today, which would count every
- * ordinary review as a lesson. Both the daily budget and the growth curve are
- * counted from it, so they agree by construction.
+ * Keyed by card, not by (card, task): the several ways a word is tested are
+ * still one word, so learning 猫 costs one lesson whether it carries two
+ * questions or four. The earliest entry is what counts — not simply an entry
+ * dated today, which would count every ordinary review as a lesson. Both the
+ * daily budget and the growth curve are counted from it, so they agree by
+ * construction.
  */
 function firstSeenAt(log: ReviewLogEntry[]): Map<string, number> {
   const firstSeen = new Map<string, number>();
   for (const entry of log) {
-    const key = `${entry.cardId}:${entry.task}`;
-    const at = firstSeen.get(key);
-    if (at === undefined || entry.at < at) firstSeen.set(key, entry.at);
+    const at = firstSeen.get(entry.cardId);
+    if (at === undefined || entry.at < at) firstSeen.set(entry.cardId, entry.at);
   }
   return firstSeen;
 }
 
-/** How many *new* items were started today. */
+/** How many *new* words were started today. */
 export function lessonsStartedToday(log: ReviewLogEntry[], now = new Date()): number {
   const today = dayKey(now);
   let count = 0;
@@ -51,7 +52,7 @@ export interface DailyBudget {
 }
 
 /**
- * The single answer to "how many new items may I start right now".
+ * The single answer to "how many new words may I start right now".
  *
  * Both the dashboard and the review queue read this, so the number shown and
  * the number enforced can't drift apart.
@@ -83,9 +84,9 @@ export interface DayStat {
    */
   scored: number;
   precise: number;
-  /** Questions seen for the very first time that day. */
+  /** Words seen for the very first time that day. */
   learned: number;
-  /** Distinct questions ever started, as of the end of this day. */
+  /** Distinct words ever started, as of the end of this day. */
   total: number;
 }
 

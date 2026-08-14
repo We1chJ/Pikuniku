@@ -7,7 +7,7 @@ import AutoplayToggle from "@/components/AutoplayToggle";
 import SignIn from "@/components/SignIn";
 import { useStore, stateFor, newState, tasksFor } from "@/lib/store";
 import { applyRating, isDue, outcomeToRating } from "@/lib/scheduler";
-import { applyAnswer, buildQueue, pickNext, remaining, type SessionMode } from "@/lib/session";
+import { applyAnswer, buildQueue, pickNext, wordProgress, type SessionMode } from "@/lib/session";
 import { dailyBudget } from "@/lib/stats";
 import type { Card, Progress, SessionQuestion, TaskKind } from "@/lib/types";
 import type { Store } from "@/lib/store";
@@ -47,6 +47,7 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
 
   const current = pickNext(queue, lastCardId);
   const card = current ? cards.find((c) => c.id === current.cardId) : undefined;
+  const progressed = wordProgress(queue);
 
   if (!current || !card) {
     return (
@@ -66,6 +67,22 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
 
   return (
     <main className="relative flex flex-1 flex-col">
+      {/* How far through the session, in words — no count of what's left, which
+          only ever reads as how much is still owed. It rides on top of the
+          prompt panel rather than above it, so it takes no layout of its own. */}
+      <div
+        role="progressbar"
+        aria-label="Session progress"
+        aria-valuemin={0}
+        aria-valuemax={progressed.total}
+        aria-valuenow={progressed.done}
+        className="absolute inset-x-0 top-0 z-20 h-1.5 bg-black/20"
+      >
+        <div
+          className="h-full bg-white/90 transition-[width] duration-500 ease-out"
+          style={{ width: `${(progressed.done / progressed.total) * 100}%` }}
+        />
+      </div>
       {/* Leaving mid-session is safe: every answer is committed as it's given, so
           only the unanswered remainder goes back to the queue. */}
       <Link
@@ -86,7 +103,6 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
         card={card}
         task={current.task}
         deck={cards}
-        progressLabel={`${remaining(queue)} ${mode === "lessons" ? "to learn" : "left"}`}
         onAlias={store.updateCard}
         onResolved={(outcome, input, elapsedMs) => {
           const rating = outcomeToRating(outcome, elapsedMs);
@@ -142,16 +158,16 @@ function Summary({
   const total = tally.correct + tally.wrong;
   const now = new Date();
 
-  // What the *other* mode has waiting. Finishing one and being told nothing is
-  // left, while the dashboard shows a full tile, is the confusion this whole
-  // split was meant to remove.
-  const questions = store.cards.flatMap((c) =>
+  // What the *other* mode has waiting, counted in words to match the dashboard.
+  // Finishing one and being told nothing is left, while the dashboard shows a
+  // full tile, is the confusion this whole split was meant to remove.
+  const states = store.cards.map((c) =>
     tasksFor(c, store.settings.production).map((t) => stateFor(store.progress, c.id, t)),
   );
-  const unstarted = questions.filter((s) => !s).length;
+  const unstarted = states.filter((s) => s.some((state) => !state)).length;
   const budget = dailyBudget(store.settings, store.log, now);
   const lessons = Math.min(unstarted, budget.remaining);
-  const reviews = questions.filter((s) => s && isDue(s, now)).length;
+  const reviews = states.filter((s) => s.some((state) => state && isDue(state, now))).length;
 
   const other =
     mode === "lessons"
@@ -187,7 +203,7 @@ function Summary({
       {capped && (
         <div className="mt-6 rounded-xl border border-border bg-surface px-5 py-4">
           <p className="text-sm text-muted">
-            {unstarted} new {unstarted === 1 ? "item is" : "items are"} waiting, held back by
+            {unstarted} new {unstarted === 1 ? "word is" : "words are"} waiting, held back by
             today&rsquo;s limit of {budget.allowance}.
           </p>
           <button

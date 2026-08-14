@@ -64,8 +64,14 @@ export default function Landing() {
 
           {/* Fills the empty right half of the hero. Absolute rather than a grid
               column so the headline keeps its own measure — and it only appears
-              once there's room beside the text for it. */}
-          <div className="absolute top-1/2 right-4 hidden -translate-y-1/2 lg:block">
+              once there's room beside the text for it.
+
+              Past xl it grows, and slides right into the page margin as it does:
+              scaling in place would walk the leftmost card into the paragraph,
+              and the margin is empty anyway. origin-top sends the extra height
+              downwards, where there's nothing but background, rather than up
+              into the headline. */}
+          <div className="absolute top-1/2 right-4 hidden origin-top -translate-y-1/2 lg:block xl:translate-x-14 xl:scale-110 2xl:translate-x-28 2xl:scale-125">
             <CardFan />
           </div>
         </div>

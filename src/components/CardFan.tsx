@@ -61,6 +61,48 @@ const SAMPLES = [
   },
 ];
 
+const SHARD_COLOURS = ["bg-component", "bg-primary", "bg-compound", "bg-accent"];
+
+/**
+ * Confetti thrown by the deal, as (direction, distance, spin) — resolved to a
+ * vector here rather than in the markup. Every shard leaves from the middle of
+ * the fan, which is where the cards were a moment earlier.
+ */
+const CONFETTI = [
+  { deg: -104, dist: 240, spin: 320, size: "h-4 w-2" },
+  { deg: -68, dist: 250, spin: -260, size: "h-2.5 w-2.5" },
+  { deg: -32, dist: 280, spin: 400, size: "h-3 w-2" },
+  { deg: -8, dist: 300, spin: -180, size: "h-2 w-2" },
+  { deg: 22, dist: 285, spin: 300, size: "h-4 w-2" },
+  { deg: 58, dist: 250, spin: -340, size: "h-2.5 w-2.5" },
+  { deg: 96, dist: 245, spin: 240, size: "h-3 w-2" },
+  { deg: 132, dist: 225, spin: -400, size: "h-2 w-2" },
+  { deg: 158, dist: 205, spin: 360, size: "h-4 w-2" },
+  // The three heading left stay shortest: that's the side the paragraph is on.
+  { deg: -178, dist: 200, spin: -220, size: "h-2.5 w-2.5" },
+  { deg: -146, dist: 215, spin: 420, size: "h-3 w-2" },
+  { deg: -122, dist: 235, spin: -300, size: "h-2 w-2" },
+].map((c, i) => ({
+  ...c,
+  x: `${Math.round(Math.cos((c.deg * Math.PI) / 180) * c.dist)}px`,
+  y: `${Math.round(Math.sin((c.deg * Math.PI) / 180) * c.dist)}px`,
+  colour: SHARD_COLOURS[i % SHARD_COLOURS.length],
+  // Fired as the cards land, not before: 0.18s stagger + 0.7s of dealing.
+  delay: `${0.5 + (i % 4) * 0.06}s`,
+}));
+
+/** Sparkles, placed around the silhouette of the fan rather than on it. */
+const SPARKLES = [
+  { left: "3%", top: "26%", size: "h-4 w-4", colour: "text-component", time: "3.4s", delay: "1.4s" },
+  { left: "16%", top: "4%", size: "h-3 w-3", colour: "text-accent", time: "4.2s", delay: "2.1s" },
+  { left: "47%", top: "-3%", size: "h-5 w-5", colour: "text-primary", time: "3.8s", delay: "1.7s" },
+  { left: "91%", top: "13%", size: "h-3 w-3", colour: "text-compound", time: "4.6s", delay: "2.6s" },
+  { left: "97%", top: "58%", size: "h-4 w-4", colour: "text-accent", time: "3.6s", delay: "3.2s" },
+  { left: "80%", top: "94%", size: "h-3 w-3", colour: "text-primary", time: "4.4s", delay: "2.4s" },
+  { left: "28%", top: "97%", size: "h-4 w-4", colour: "text-component", time: "4s", delay: "3.6s" },
+  { left: "-2%", top: "71%", size: "h-3 w-3", colour: "text-compound", time: "5s", delay: "1.9s" },
+];
+
 /**
  * A fanned hand of specimen cards — decorative only, so it's hidden from
  * assistive tech and never takes a click away from the sign-in form behind it.
@@ -115,6 +157,40 @@ export default function CardFan() {
             </div>
           </div>
         </div>
+      ))}
+
+      {CONFETTI.map((c, i) => (
+        <span
+          key={i}
+          style={
+            {
+              "--burst-x": c.x,
+              "--burst-y": c.y,
+              "--burst-spin": `${c.spin}deg`,
+              "--burst-delay": c.delay,
+            } as CSSProperties
+          }
+          className={`${c.colour} ${c.size} animate-burst absolute top-1/2 left-1/2 z-30 rounded-xs`}
+        />
+      ))}
+
+      {SPARKLES.map((s, i) => (
+        <svg
+          key={i}
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          style={
+            {
+              left: s.left,
+              top: s.top,
+              "--twinkle-time": s.time,
+              "--twinkle-delay": s.delay,
+            } as CSSProperties
+          }
+          className={`${s.colour} ${s.size} animate-twinkle absolute z-30`}
+        >
+          <path d="M12 0c1.1 8.2 2.7 9.8 12 12-9.3 2.2-10.9 3.8-12 12-1.1-8.2-2.7-9.8-12-12 9.3-2.2 10.9-3.8 12-12Z" />
+        </svg>
       ))}
     </div>
   );

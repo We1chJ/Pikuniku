@@ -146,6 +146,49 @@ body {
   animation-delay: var(--drift-delay, 0s);
 }
 
+/* Confetti thrown by the deal. Each shard carries its own vector in
+   --burst-x/--burst-y and is gone inside a second: the burst belongs to the
+   cards landing, so it must not outlive them. */
+@keyframes burst {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(0.4);
+  }
+  15%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--burst-x), var(--burst-y)) rotate(var(--burst-spin))
+      scale(0.9);
+  }
+}
+
+.animate-burst {
+  animation: burst 1.1s cubic-bezier(0.1, 0.7, 0.3, 1) both;
+  animation-delay: var(--burst-delay, 0s);
+}
+
+/* Sparkles are dark for most of their cycle — they pop and are gone, rather
+   than sitting there glowing next to a form someone is trying to read. */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(90deg);
+  }
+}
+
+.animate-twinkle {
+  animation: twinkle var(--twinkle-time, 4s) ease-in-out infinite;
+  animation-delay: var(--twinkle-delay, 0s);
+}
+
 @keyframes caret {
   0%,
   49% {
@@ -168,6 +211,13 @@ body {
   .animate-drift,
   .animate-caret {
     animation: none;
+  }
+
+  /* These two are nothing but their animation — stopped, the confetti would
+     sit in a heap in the middle of the fan — so they leave altogether. */
+  .animate-burst,
+  .animate-twinkle {
+    display: none;
   }
 }
 

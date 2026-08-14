@@ -109,6 +109,68 @@ body {
   animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
+/* The landing fan deals itself out of a single stack: every card starts where
+   the stack was — the inverse of its own fanned transform, handed in as
+   --deal-from — and springs to its place. The overshoot in the curve is what
+   makes it read as a flick of the wrist rather than a slide. */
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: var(--deal-from) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-deal {
+  animation: deal 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+  animation-delay: var(--deal-delay, 0s);
+}
+
+/* Runs on a child of the dealt card, not the card itself: two animations
+   fighting over one transform would cancel the fan out. */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-drift {
+  animation: drift var(--drift-time, 7s) ease-in-out infinite;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+@keyframes caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-caret {
+  animation: caret 1.1s step-end infinite;
+}
+
+/* Decoration only, so it's the first thing to go when motion is unwelcome. The
+   dealt cards land on their natural position, which is where they belong. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-deal,
+  .animate-drift,
+  .animate-caret {
+    animation: none;
+  }
+}
+
 @keyframes fade-up {
   from {
     opacity: 0;

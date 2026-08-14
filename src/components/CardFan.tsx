@@ -1,9 +1,14 @@
+import type { CSSProperties } from "react";
+
 /**
  * Sample cards for the landing hero. Not the seed deck: these are here to be
  * looked at, so they're the three card types side by side, each with a short
- * enough meaning to fit a 13rem card. Colours and labels are spelled out rather
- * than imported from QuizPanel — three strings is cheaper than pulling the quiz
- * (and wanakana with it) into the signed-out bundle.
+ * enough meaning to fit a 14rem card. Colours and labels are spelled out rather
+ * than imported from QuizPanel — a handful of strings is cheaper than pulling
+ * the quiz (and wanakana with it) into the signed-out bundle.
+ *
+ * `tilt` places the card in the fan; `from` is roughly its inverse, so the deal
+ * animation starts every card on the same spot in the middle of the fan.
  */
 const SAMPLES = [
   {
@@ -12,8 +17,13 @@ const SAMPLES = [
     label: "Component",
     meaning: "one",
     reading: "いち",
-    /** transform, applied on top of the centring translate */
-    tilt: "translate(-5.6rem, 1.4rem) rotate(-13deg)",
+    stage: "Master",
+    stageCls: "bg-stage-master",
+    due: "in 3w",
+    tilt: "translate(-5rem, 1.4rem) rotate(-10deg)",
+    from: "translate(5rem, -1.4rem) rotate(10deg)",
+    deal: "0s",
+    drift: { time: "7s", delay: "0.9s" },
     z: "z-0",
   },
   {
@@ -22,7 +32,13 @@ const SAMPLES = [
     label: "Compound",
     meaning: "volcano",
     reading: "かざん",
-    tilt: "translate(5.6rem, 1.1rem) rotate(12deg)",
+    stage: "Apprentice",
+    stageCls: "bg-stage-apprentice",
+    due: "in 4h",
+    tilt: "translate(5rem, 1.1rem) rotate(11deg)",
+    from: "translate(-5rem, -1.1rem) rotate(-11deg)",
+    deal: "0.09s",
+    drift: { time: "8.5s", delay: "1.05s" },
     z: "z-10",
   },
   {
@@ -33,7 +49,14 @@ const SAMPLES = [
     label: "Character",
     meaning: "person",
     reading: "じん",
+    stage: "Guru",
+    stageCls: "bg-stage-guru",
+    due: "in 2d",
     tilt: "rotate(-2deg)",
+    from: "rotate(2deg)",
+    // Dealt last, so the card you're meant to read lands on top of the pile.
+    deal: "0.18s",
+    drift: { time: "6.5s", delay: "1.2s" },
     z: "z-20",
   },
 ];
@@ -44,29 +67,51 @@ const SAMPLES = [
  */
 export default function CardFan() {
   return (
-    <div aria-hidden className="pointer-events-none relative h-80 w-96 select-none">
+    <div aria-hidden className="pointer-events-none relative h-96 w-96 select-none">
       {SAMPLES.map((s) => (
         <div
           key={s.front}
           style={{ transform: `translate(-50%, -50%) ${s.tilt}` }}
-          className={`${s.z} absolute top-1/2 left-1/2 w-52 overflow-hidden rounded-2xl border border-border bg-surface shadow-xl`}
+          className={`${s.z} absolute top-1/2 left-1/2 w-52`}
         >
-          <div className={`${s.bg} px-4 py-6 text-center text-white`}>
-            <p className="jp text-5xl leading-none font-medium">{s.front}</p>
-            <p className="mt-3 text-[10px] font-semibold tracking-[0.2em] uppercase opacity-80">
-              {s.label} · Meaning
-            </p>
-          </div>
-          <div className="p-3">
-            {/* The answer bar, mid-typing — the part of the app you spend your
-                time in, and the one thing a static screenshot can't show. */}
-            <div className="rounded-lg border border-border bg-background px-3 py-2 text-center text-sm">
-              {s.meaning}
-              <span className="ml-px inline-block h-4 w-px translate-y-0.5 bg-foreground" />
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-[11px]">
-              <span className="text-muted">Reading</span>
-              <span className="jp font-medium">{s.reading}</span>
+          <div
+            className="animate-deal"
+            style={{ "--deal-from": s.from, "--deal-delay": s.deal } as CSSProperties}
+          >
+            <div
+              style={
+                {
+                  "--drift-time": s.drift.time,
+                  "--drift-delay": s.drift.delay,
+                } as CSSProperties
+              }
+              className="animate-drift overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
+            >
+              <div className={`${s.bg} px-4 py-9 text-center text-white`}>
+                <p className="jp text-6xl leading-none font-medium">{s.front}</p>
+                <p className="mt-4 text-[10px] font-semibold tracking-[0.2em] uppercase opacity-80">
+                  {s.label} · Meaning
+                </p>
+              </div>
+              <div className="space-y-3 p-4">
+                {/* The answer bar, mid-typing — the part of the app you spend
+                    your time in, and the one thing a screenshot can't show. */}
+                <div className="rounded-lg border border-border bg-background px-3 py-2.5 text-center text-sm">
+                  {s.meaning}
+                  <span className="animate-caret ml-px inline-block h-4 w-px translate-y-0.5 bg-foreground align-middle" />
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted">Reading</span>
+                  <span className="jp font-medium">{s.reading}</span>
+                </div>
+                <div className="flex items-center gap-2 border-t border-border pt-3">
+                  <div className={`${s.stageCls} h-1.5 w-6 shrink-0 rounded-full`} />
+                  <span className="text-[10px] font-semibold tracking-wide text-muted uppercase">
+                    {s.stage}
+                  </span>
+                  <span className="ml-auto text-[10px] text-muted">{s.due}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

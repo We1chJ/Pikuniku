@@ -1,5 +1,6 @@
 "use client";
 
+import CardFan from "./CardFan";
 import SignInForm from "./SignInForm";
 
 const LADDER = [
@@ -59,6 +60,13 @@ export default function Landing() {
             <p className="mt-3 text-center text-xs text-muted">
               Your cards sync across every device you sign in on.
             </p>
+          </div>
+
+          {/* Fills the empty right half of the hero. Absolute rather than a grid
+              column so the headline keeps its own measure — and it only appears
+              once there's room beside the text for it. */}
+          <div className="absolute top-1/2 right-4 hidden -translate-y-1/2 lg:block">
+            <CardFan />
           </div>
         </div>
       </section>

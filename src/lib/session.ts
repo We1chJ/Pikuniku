@@ -30,7 +30,6 @@ export const MAX_STARTED = 10;
 export function buildQueue(
   cards: Card[],
   progress: Record<string, Progress>,
-  production = false,
   /** Remaining new *words* allowed today. Reviews are never withheld. */
   lessonBudget = Infinity,
   now = new Date(),
@@ -44,7 +43,7 @@ export function buildQueue(
   const queue: SessionQuestion[] = [];
   let budget = lessonBudget;
   for (const card of cards) {
-    const tasks = tasksFor(card, production);
+    const tasks = tasksFor(card);
     // Never studied → a lesson, and lessons are what get paced. Studied and due
     // → a review. A card can hold both, which is why they're split rather than
     // filtered from one list.

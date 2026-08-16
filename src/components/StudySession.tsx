@@ -33,14 +33,7 @@ export default function StudySession({ mode }: { mode: SessionMode }) {
 function Session({ store, mode }: { store: Store; mode: SessionMode }) {
   const { cards, progress, recordAnswer } = store;
   const [queue, setQueue] = useState<SessionQuestion[]>(() =>
-    buildQueue(
-      cards,
-      progress,
-      store.settings.production,
-      dailyBudget(store.settings, store.log).remaining,
-      new Date(),
-      mode,
-    ),
+    buildQueue(cards, progress, dailyBudget(store.settings, store.log).remaining, new Date(), mode),
   );
   const [lastCardId, setLastCardId] = useState<string | null>(null);
   const [tally, setTally] = useState({ correct: 0, wrong: 0 });
@@ -59,7 +52,7 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
         // so it has to be refilled or the button appears to do nothing.
         onMore={(n) => {
           store.grantExtraLessons(n);
-          setQueue(buildQueue(cards, progress, store.settings.production, n, new Date(), "lessons"));
+          setQueue(buildQueue(cards, progress, n, new Date(), "lessons"));
         }}
       />
     );
@@ -162,7 +155,7 @@ function Summary({
   // Finishing one and being told nothing is left, while the dashboard shows a
   // full tile, is the confusion this whole split was meant to remove.
   const states = store.cards.map((c) =>
-    tasksFor(c, store.settings.production).map((t) => stateFor(store.progress, c.id, t)),
+    tasksFor(c).map((t) => stateFor(store.progress, c.id, t)),
   );
   const unstarted = states.filter((s) => s.some((state) => !state)).length;
   const budget = dailyBudget(store.settings, store.log, now);

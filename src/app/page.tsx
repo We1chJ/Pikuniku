@@ -16,8 +16,6 @@ export default function Dashboard() {
   const {
     ready,
     signedIn,
-    email,
-    remote,
     error,
     cards,
     progress,
@@ -25,7 +23,6 @@ export default function Dashboard() {
     settings,
     setSetting,
     grantExtraLessons,
-    signOut,
   } = useStore();
 
   if (!ready) {
@@ -45,7 +42,7 @@ export default function Dashboard() {
   // ways is still one thing to learn, and the tiles have to say the same number
   // the session will actually give you.
   const words = cards.map((c) => {
-    const states = tasksFor(c, settings.production).map((task) => progress[c.id]?.tasks?.[task]);
+    const states = tasksFor(c).map((task) => progress[c.id]?.tasks?.[task]);
     return {
       card: c,
       states,
@@ -93,7 +90,7 @@ export default function Dashboard() {
   const peak = Math.max(1, ...forecast.map((f) => f.count));
 
   const leeches = cards.filter((c) =>
-    tasksFor(c, settings.production).some((t) => (progress[c.id]?.tasks?.[t]?.lapses ?? 0) >= LEECH_LAPSES),
+    tasksFor(c).some((t) => (progress[c.id]?.tasks?.[t]?.lapses ?? 0) >= LEECH_LAPSES),
   );
 
   const scored = log.filter((l) => l.outcome !== "imprecise");
@@ -264,7 +261,7 @@ export default function Dashboard() {
                 rest of the dashboard off the page however big the deck gets. */}
             <div className="mt-4 max-h-96 overflow-y-auto rounded-xl border border-border bg-surface">
               {cards.map((c) => {
-                const tasks = tasksFor(c, settings.production);
+                const tasks = tasksFor(c);
                 const states = tasks.map((t) => progress[c.id]?.tasks?.[t]);
                 // A card is only as done as its least-studied task, so the row
                 // reports the whole card: anything unstarted is a lesson and says
@@ -305,38 +302,6 @@ export default function Dashboard() {
           </details>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-sm font-bold tracking-wide uppercase">Settings</h2>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface p-5">
-            <input
-              type="checkbox"
-              checked={settings.production}
-              onChange={(e) => setSetting("production", e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-            />
-            <span>
-              <span className="text-sm font-semibold">Also test English → Japanese</span>
-              <span className="mt-1 block text-xs text-muted">
-                Adds a third question to cards that have a reading: you&rsquo;re shown the
-                meaning and produce the word. Harder than recognition, and it grows your
-                daily review count by roughly half. Answers count in kana — the characters
-                are accepted too if you have a Japanese IME.
-              </span>
-            </span>
-          </label>
-        </section>
-
-        {remote && (
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <span className="text-xs text-muted">{email}</span>
-            <button
-              onClick={() => signOut()}
-              className="text-xs text-muted underline underline-offset-4 hover:text-foreground"
-            >
-              Sign out
-            </button>
-          </div>
-        )}
       </main>
     </>
   );

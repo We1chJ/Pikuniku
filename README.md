@@ -110,8 +110,8 @@ surfaced for editing — a fix a fixed-curriculum app cannot offer.
   katakana, so `KO-HI-` → コーヒー.
 - **Pronunciation** through the browser's speech synthesis — no audio files, and it speaks
   the *reading*, since synthesisers guess kanji and get 大人 wrong.
-- **English → Japanese** production questions, optional. A word that legitimately fits the
-  prompt but belongs to another card is a retry, not a mistake.
+- **English → Japanese** production questions on every card that can carry one. A word that
+  legitimately fits the prompt but belongs to another card is a retry, not a mistake.
 - **Sync** across devices via Supabase, with row-level security and magic-link sign-in.
 
 ## Running it

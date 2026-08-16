@@ -12,8 +12,8 @@
  * both backends genuinely are external stores and this keeps every page in sync
  * without a context provider.
  *
- * Settings stay local in both modes: autoplay and the production toggle are
- * preferences about *this device*, not part of the deck.
+ * Settings stay local in both modes: autoplay and the daily pace are preferences
+ * about *this device*, not part of the deck.
  */
 
 import { useSyncExternalStore } from "react";
@@ -36,11 +36,6 @@ export interface Settings {
   /** Speak the reading automatically when an answer comes back correct. */
   autoplay: boolean;
   /**
-   * Also quiz English → Japanese. Off by default: it adds a third question to
-   * most cards, so turning it on meaningfully increases the daily load.
-   */
-  production: boolean;
-  /**
    * How many new items may be started per day. Reviews are never capped —
    * they're work already owed, and deferring them defeats the scheduling.
    * 0 means no new lessons at all; useful for clearing a backlog.
@@ -56,7 +51,6 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   autoplay: true,
-  production: false,
   dailyLessons: 10,
   bonusDay: "",
   bonusCount: 0,
@@ -117,6 +111,20 @@ function write<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+/**
+ * Read-modify-write against what is *in storage*, not against this tab's copy.
+ *
+ * Every one of these keys holds a whole collection, so a tab that writes its own
+ * in-memory copy back discards anything another tab wrote since this one loaded.
+ * Re-reading first makes the write a merge, and the storage event below brings
+ * this tab's snapshot up to date straight after.
+ */
+function mutate<T>(key: string, fallback: T, fn: (current: T) => T): T {
+  const next = fn(read<T>(key, fallback));
+  write(key, next);
+  return next;
+}
+
 export function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -161,8 +169,11 @@ function loadLocal() {
   });
 }
 
+let lastFetch = 0;
+
 async function loadRemote() {
   if (!supabase) return;
+  lastFetch = Date.now();
   const { data } = await supabase.auth.getSession();
   const email = data.session?.user.email ?? null;
 
@@ -179,6 +190,34 @@ async function loadRemote() {
   }
 }
 
+/** Alt-tabbing back and forth shouldn't fire a refetch each way. */
+const REFETCH_INTERVAL_MS = 5000;
+
+/**
+ * Another tab's answers go to Supabase, not to this tab, so a tab left open on
+ * the dashboard shows the counts it loaded with. Refetching when it comes back
+ * to the front is enough to keep them honest without holding a socket open.
+ */
+function refetchIfStale() {
+  if (document.visibilityState !== "visible") return;
+  if (Date.now() - lastFetch < REFETCH_INTERVAL_MS) return;
+  void loadRemote();
+}
+
+/**
+ * Settings are localStorage in both modes, so both modes have to listen: the
+ * event fires in every *other* tab the moment one of them writes. Without it a
+ * tab keeps the copy it loaded with — which is how one tab ends up counting a
+ * pile of production reviews while another insists nothing is due.
+ */
+function onStorage(e: StorageEvent) {
+  // A null key means the whole store was cleared; anything else isn't ours.
+  if (e.key !== null && !Object.values(KEYS).includes(e.key)) return;
+  // In remote mode settings are the only thing here; locally, re-read the lot.
+  if (isRemote) set({ settings: readSettings() });
+  else loadLocal();
+}
+
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -191,9 +230,14 @@ function load() {
     supabase?.auth.onAuthStateChange(() => {
       void loadRemote();
     });
+    // visibilitychange covers switching tabs; focus covers switching windows,
+    // where both tabs stay visible and visibilitychange never fires.
+    document.addEventListener("visibilitychange", refetchIfStale);
+    window.addEventListener("focus", refetchIfStale);
   } else {
     loadLocal();
   }
+  window.addEventListener("storage", onStorage);
 }
 
 function subscribe(cb: () => void) {
@@ -257,9 +301,8 @@ export function addCard(card: Omit<Card, "id" | "createdAt">) {
       .catch((e) => set({ error: message(e) }));
     return;
   }
-  const cards = [...snapshot.cards, { ...card, id: newId(), createdAt: Date.now() }];
-  write(KEYS.cards, cards);
-  set({ cards });
+  const created = { ...card, id: newId(), createdAt: Date.now() };
+  set({ cards: mutate<Card[]>(KEYS.cards, [], (stored) => [...migrate(stored), created]) });
 }
 
 /**
@@ -268,28 +311,34 @@ export function addCard(card: Omit<Card, "id" | "createdAt">) {
  * and the write follows.
  */
 export function updateCard(id: string, patch: Partial<Card>) {
-  const cards = snapshot.cards.map((c) => (c.id === id ? { ...c, ...patch } : c));
-  set({ cards });
+  const apply = (list: Card[]) => list.map((c) => (c.id === id ? { ...c, ...patch } : c));
 
   if (isRemote) {
+    set({ cards: apply(snapshot.cards) });
     void remote.updateCard(id, patch).catch((e) => set({ error: message(e) }));
     return;
   }
-  write(KEYS.cards, cards);
+  // Locally the merge is synchronous, so the snapshot can take the merged list
+  // directly and skip the optimistic step entirely.
+  set({ cards: mutate<Card[]>(KEYS.cards, [], (stored) => apply(migrate(stored))) });
 }
 
 export function deleteCard(id: string) {
-  const cards = snapshot.cards.filter((c) => c.id !== id);
-  const progress = { ...snapshot.progress };
-  delete progress[id];
-  set({ cards, progress });
+  const without = (map: Record<string, Progress>) => {
+    const next = { ...map };
+    delete next[id];
+    return next;
+  };
 
   if (isRemote) {
+    set({ cards: snapshot.cards.filter((c) => c.id !== id), progress: without(snapshot.progress) });
     void remote.removeCard(id).catch((e) => set({ error: message(e) }));
     return;
   }
-  write(KEYS.cards, cards);
-  write(KEYS.progress, progress);
+  set({
+    cards: mutate<Card[]>(KEYS.cards, [], (stored) => migrate(stored).filter((c) => c.id !== id)),
+    progress: mutate<Record<string, Progress>>(KEYS.progress, {}, without),
+  });
 }
 
 export function recordAnswer(
@@ -299,30 +348,35 @@ export function recordAnswer(
   outcome: ReviewLogEntry["outcome"],
   nextState: NonNullable<Progress["tasks"][TaskKind]>,
 ) {
-  const existing = snapshot.progress[cardId] ?? { cardId, tasks: {} };
-  const progress = {
-    ...snapshot.progress,
-    [cardId]: { ...existing, tasks: { ...existing.tasks, [task]: nextState } },
-  };
   // Append-only: this is the collection that must merge cleanly across devices,
   // so it is never mutated or compacted in place.
-  const log = [...snapshot.log, { id: newId(), cardId, task, input, outcome, at: Date.now() }];
-  set({ progress, log });
+  const entry = { id: newId(), cardId, task, input, outcome, at: Date.now() };
+  const fold = (into: Record<string, Progress>) => {
+    const existing = into[cardId] ?? { cardId, tasks: {} };
+    return { ...into, [cardId]: { ...existing, tasks: { ...existing.tasks, [task]: nextState } } };
+  };
 
   if (isRemote) {
+    set({ progress: fold(snapshot.progress), log: [...snapshot.log, entry] });
     void remote
       .saveAnswer(cardId, task, input, outcome, nextState)
       .catch((e) => set({ error: message(e) }));
     return;
   }
-  write(KEYS.progress, progress);
-  write(KEYS.log, log);
+  // Folded into what's stored rather than into what this tab holds: a session
+  // running in a second tab must not lose the answers given in the first.
+  set({
+    progress: mutate<Record<string, Progress>>(KEYS.progress, {}, fold),
+    log: mutate<ReviewLogEntry[]>(KEYS.log, [], (stored) => [...stored, entry]),
+  });
 }
 
 /** Raise today's ceiling without touching the standing daily limit. */
 export function grantExtraLessons(n: number) {
   const today = dayKey(new Date());
-  const current = snapshot.settings;
+  // Read back rather than trusting the snapshot: a bonus granted in another tab
+  // has already been spent, and adding to a stale count would grant it twice.
+  const current = readSettings();
   const settings = {
     ...current,
     bonusDay: today,
@@ -333,7 +387,9 @@ export function grantExtraLessons(n: number) {
 }
 
 export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-  const settings = { ...snapshot.settings, [key]: value };
+  // Only the one key changes. Writing this tab's whole copy back would undo any
+  // other setting another tab has changed since this one loaded.
+  const settings = { ...readSettings(), [key]: value };
   write(KEYS.settings, settings);
   set({ settings });
 }
@@ -365,13 +421,15 @@ export function useStore(): Store {
 }
 
 /**
- * Tasks a card actually has. Reading is skipped when there are no readings;
- * production is opt-in and skipped when there's nothing typeable to produce.
+ * Tasks a card actually has. Reading is skipped when there are no readings, and
+ * production when there's nothing typeable to produce — otherwise every card is
+ * tested both ways round. Recognition alone is the easier half of knowing a
+ * word, so producing it is not something to opt into.
  */
-export function tasksFor(card: Card, production = false): TaskKind[] {
+export function tasksFor(card: Card): TaskKind[] {
   const tasks: TaskKind[] = ["meaning"];
   if (card.readings.length > 0) tasks.push("reading");
-  if (production && isProducible(card)) tasks.push("production");
+  if (isProducible(card)) tasks.push("production");
   return tasks;
 }
 

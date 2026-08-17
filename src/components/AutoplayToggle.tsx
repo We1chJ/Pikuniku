@@ -1,6 +1,6 @@
 "use client";
 
-import { useJapaneseVoice } from "@/lib/speech";
+import { useCanSpeak } from "@/lib/speech";
 
 export default function AutoplayToggle({
   on,
@@ -9,9 +9,9 @@ export default function AutoplayToggle({
   on: boolean;
   onChange: (next: boolean) => void;
 }) {
-  const voice = useJapaneseVoice();
-  // Nothing to toggle if the OS can't speak Japanese at all.
-  if (!voice) return null;
+  const canSpeak = useCanSpeak();
+  // Nothing to toggle if nothing can speak Japanese at all.
+  if (!canSpeak) return null;
 
   return (
     <button

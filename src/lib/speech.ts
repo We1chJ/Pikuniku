@@ -1,18 +1,24 @@
 "use client";
 
 /**
- * Pronunciation via the browser's built-in speech synthesis.
+ * Pronunciation. No audio files: the cards are yours, so any pre-recorded
+ * library would only ever cover somebody else's vocabulary.
  *
- * No audio files, no backend, no API key. That isn't just convenience: the whole
- * point of this app is that the cards are yours, so any pre-recorded library
- * would only ever cover somebody else's vocabulary. Synthesis pronounces
- * whatever you wrote.
+ * Two ways to say a word, in this order:
  *
- * The catch is that voices come from the OS, so a Japanese voice may not exist.
- * Everything here degrades to "no voice" rather than failing loudly.
+ *   1. The `speak` edge function, which synthesises one pinned Japanese voice.
+ *      This is what makes a word sound the same on a Mac as on Windows.
+ *   2. The browser's own speech synthesis, using whichever Japanese voice the OS
+ *      installed — which is where the inconsistency came from, and why it is now
+ *      the fallback rather than the mechanism.
+ *
+ * Everything degrades rather than failing loudly: no Supabase, a function that's
+ * down, or a machine with no Japanese voice at all each drop to the next option,
+ * and the last of them is silence.
  */
 
 import { useSyncExternalStore } from "react";
+import { supabase, isRemote } from "./supabase";
 
 const EMPTY: SpeechSynthesisVoice[] = [];
 let voices: SpeechSynthesisVoice[] = EMPTY;
@@ -62,6 +68,87 @@ export function useJapaneseVoice(): SpeechSynthesisVoice | null {
   return pickJapanese(all);
 }
 
+/**
+ * Whether there's any way to speak at all — the synthesised voice counts even
+ * before a clip has been fetched, so the button doesn't wait on the network to
+ * decide whether it exists.
+ */
+export function useCanSpeak(): boolean {
+  return useJapaneseVoice() !== null || isRemote;
+}
+
+/* ------------------------------------------------------------------ *
+ * The synthesised voice
+ * ------------------------------------------------------------------ */
+
+/**
+ * Clips already fetched this session, by text.
+ *
+ * Held in memory and nowhere else: a review session says the same handful of
+ * words several times over, and paying a round trip for each repeat is the only
+ * real cost of moving off the OS voice. Closing the tab forgets them.
+ */
+const clips = new Map<string, string>();
+/** Requests in flight, so a prefetch and a click don't both ask. */
+const inFlight = new Map<string, Promise<string | null>>();
+
+let audio: HTMLAudioElement | null = null;
+
+async function fetchClip(text: string): Promise<string | null> {
+  const ready = clips.get(text);
+  if (ready) return ready;
+  if (!supabase) return null;
+
+  const existing = inFlight.get(text);
+  if (existing) return existing;
+
+  const request = supabase.functions
+    .invoke("speak", { body: { text } })
+    .then(({ data, error }) => {
+      if (error || !(data instanceof Blob)) {
+        // Falling back quietly is right for whoever is studying, but not for
+        // whoever is trying to work out why they still hear the OS voice.
+        console.warn("[speech] no synthesised clip, using the OS voice:", error);
+        return null;
+      }
+      const url = URL.createObjectURL(data);
+      clips.set(text, url);
+      return url;
+    })
+    .catch(() => null)
+    .finally(() => inFlight.delete(text));
+
+  inFlight.set(text, request);
+  return request;
+}
+
+/**
+ * Warm a clip before it's wanted.
+ *
+ * Called as a question appears, so that pressing play is a cache hit rather than
+ * a round trip. It also keeps playback inside the click that asked for it, which
+ * is what Safari's autoplay rules require — audio started after an await has
+ * lost its user gesture and can be refused.
+ */
+export function prefetchSpeech(text: string) {
+  if (!isRemote || !text) return;
+  void fetchClip(text);
+}
+
+function play(url: string) {
+  audio = new Audio(url);
+  // A refusal here is a browser autoplay policy, not a fault to report.
+  void audio.play().catch(() => {});
+}
+
+function stop() {
+  audio?.pause();
+  audio = null;
+  if (!supported()) return;
+  const synth = window.speechSynthesis;
+  if (synth.speaking || synth.pending) synth.cancel();
+}
+
 let primed = false;
 
 /**
@@ -83,15 +170,36 @@ export function primeSpeech() {
   window.speechSynthesis.speak(warmup);
 }
 
-export function speak(text: string, voice: SpeechSynthesisVoice | null) {
-  if (!supported() || !text) return;
+/**
+ * Say a word, in the best voice available.
+ *
+ * `fallback` is the OS voice to use if the synthesised one can't be had — pass
+ * whatever `useJapaneseVoice` gave you, including null.
+ */
+export function speak(text: string, fallback: SpeechSynthesisVoice | null) {
+  if (!text) return;
+  // Only cancels what is actually playing — an unconditional cancel() makes the
+  // synthesis engine tear down and rebuild its state before every single play.
+  stop();
+
+  // A clip already in hand plays inside the gesture that asked for it, which is
+  // both instant and what the autoplay rules want.
+  const ready = clips.get(text);
+  if (ready) return play(ready);
+
+  if (isRemote) {
+    void fetchClip(text).then((url) => (url ? play(url) : speakLocally(text, fallback)));
+    return;
+  }
+  speakLocally(text, fallback);
+}
+
+function speakLocally(text: string, voice: SpeechSynthesisVoice | null) {
+  if (!supported()) return;
   const synth = window.speechSynthesis;
   // Chrome can leave the engine suspended after idle time; resuming costs
   // nothing when it isn't.
   synth.resume();
-  // Only cancel if something is actually queued — an unconditional cancel()
-  // makes the engine tear down and rebuild state before every single play.
-  if (synth.speaking || synth.pending) synth.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   if (voice) utterance.voice = voice;
   utterance.lang = voice?.lang ?? "ja-JP";

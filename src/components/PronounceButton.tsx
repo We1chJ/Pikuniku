@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { primeSpeech, pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
+import { primeSpeech, pronounceable, speak, useCanSpeak, useJapaneseVoice } from "@/lib/speech";
 import type { Card } from "@/lib/types";
 
 /**
- * Renders nothing when the OS has no Japanese voice — a button that silently
+ * Renders nothing when there's no way to speak at all — a button that silently
  * does nothing is worse than no button.
  */
 export default function PronounceButton({
@@ -16,6 +16,7 @@ export default function PronounceButton({
   className?: string;
 }) {
   const voice = useJapaneseVoice();
+  const canSpeak = useCanSpeak();
 
   // Warm the engine on the first interaction anywhere on the page, so the first
   // press of this button isn't the one that pays for connection setup.
@@ -29,7 +30,10 @@ export default function PronounceButton({
     };
   }, []);
 
-  if (!voice) return null;
+  // No prefetch here on purpose: this button also appears on every row of the
+  // card list, and warming all of them would be hundreds of requests for a
+  // handful of plays. The quiz panel warms the one word you're being asked.
+  if (!canSpeak) return null;
 
   return (
     <button

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { bind, isKatakana, unbind } from "wanakana";
 import { aliasPatch, grade, type GradeOutcome } from "@/lib/grader";
 import PronounceButton from "./PronounceButton";
-import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
+import { prefetchSpeech, pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
 import CardForm from "./CardForm";
 import { READING_TYPE_LABEL, TYPE_LABEL, type Card, type TaskKind } from "@/lib/types";
 
@@ -176,6 +176,15 @@ export default function QuizPanel({
     spoken.current = true;
     speak(pronounceable(card), voice);
   }, [autoplay, phase.state, card, voice]);
+
+  // Fetch the synthesised clip while the question is still being read, so that
+  // pressing play — or revealing the answer with autoplay on — doesn't wait on
+  // the network. Keyed on the text rather than the card for the same reason as
+  // above: a refetched card is a new object holding the identical word.
+  const spokenText = pronounceable(card);
+  useEffect(() => {
+    prefetchSpeech(spokenText);
+  }, [spokenText]);
 
   // The input should never lose the keyboard. If focus drifts — a stray click on
   // the background, a tab-away and back — the next keystroke pulls it back, and

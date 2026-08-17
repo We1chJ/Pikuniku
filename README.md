@@ -139,6 +139,39 @@ deck — enough to try the review loop.
 
 4. Add your dev URL to **Authentication → URL Configuration → Redirect URLs**.
 
+### One voice on every device (optional)
+
+Without this, pronunciation uses the browser's own speech synthesis, which means whichever
+Japanese voice the OS installed — Microsoft's on Windows, Apple's compact Kyoko on a Mac,
+nothing at all on some Linux boxes. The same word genuinely sounds different per machine.
+
+The [`speak`](supabase/functions/speak/index.ts) edge function fixes that by synthesising
+one pinned voice server-side. It stores nothing: audio is generated, returned, played and
+dropped, and kept in memory only for the tab's lifetime.
+
+1. Enable **Cloud Text-to-Speech API** in a Google Cloud project and create an API key.
+   Restrict it to that one API.
+2. Give it to Supabase — the key never reaches the browser:
+
+   ```bash
+   supabase secrets set GOOGLE_TTS_KEY=...
+   supabase functions deploy speak --no-verify-jwt
+   ```
+
+   `--no-verify-jwt` turns off the *platform's* check, which only understands the legacy
+   JWT-shaped keys; the function verifies the caller's session itself and refuses anyone
+   who isn't signed in.
+
+3. Optionally pin a different voice — `supabase secrets set TTS_VOICE=ja-JP-Wavenet-B`. To
+   see what's on offer:
+
+   ```bash
+   curl "https://texttospeech.googleapis.com/v1/voices?languageCode=ja-JP&key=$KEY"
+   ```
+
+Deploy it or don't: with no function, a failed call, or no Supabase at all, pronunciation
+falls back to the OS voice exactly as before.
+
 ## Deploying
 
 Every route is static and Supabase is called from the browser, so it deploys as plain files.
@@ -156,7 +189,9 @@ src/lib/
   cardinfer.ts   what can be worked out from a word and its meaning
   store.ts       one interface over Supabase and localStorage
   remote.ts      row ↔ domain mapping
+  speech.ts      synthesised voice first, the OS voice as fallback
 supabase/migrations/
+supabase/functions/speak/   text in, Japanese audio out, nothing kept
 ```
 
 ## Credits

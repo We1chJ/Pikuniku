@@ -161,11 +161,20 @@ export default function QuizPanel({
 
   // Speak once the answer is revealed, whatever the question was and however it
   // went. Only the revealed phase, though — a shake means the question is still
-  // open, and on a reading question the audio would be the answer. Keyed on the
-  // phase *name*: accepting an answer rewrites the outcome in place, and that
-  // shouldn't say the word twice.
+  // open, and on a reading question the audio would be the answer.
+  //
+  // Once, and once only. An effect that merely lists its dependencies fires
+  // again whenever one of them is rebuilt rather than changed: `card` is a fresh
+  // object every time the store refetches, and `voice` a fresh one every time
+  // Safari re-enumerates its voices — which it does on tab focus. That played
+  // the word again on every tab switch and every window focus. The panel is
+  // remounted per question (its key carries the card, task and attempt), so a
+  // ref that survives re-renders but not remounts is exactly "this question's
+  // answer has been spoken".
+  const spoken = useRef(false);
   useEffect(() => {
-    if (!autoplay || phase.state !== "revealed") return;
+    if (!autoplay || phase.state !== "revealed" || spoken.current) return;
+    spoken.current = true;
     speak(pronounceable(card), voice);
   }, [autoplay, phase.state, card, voice]);
 

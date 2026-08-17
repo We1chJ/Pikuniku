@@ -5,18 +5,13 @@ import { bind, isKatakana, unbind } from "wanakana";
 import { aliasPatch, grade, type GradeOutcome } from "@/lib/grader";
 import PronounceButton from "./PronounceButton";
 import { pronounceable, speak, useJapaneseVoice } from "@/lib/speech";
-import { READING_TYPE_LABEL, type Card, type TaskKind } from "@/lib/types";
+import CardForm from "./CardForm";
+import { READING_TYPE_LABEL, TYPE_LABEL, type Card, type TaskKind } from "@/lib/types";
 
 export const TYPE_BG: Record<Card["type"], string> = {
   component: "bg-component",
   primary: "bg-primary",
   compound: "bg-compound",
-};
-
-export const TYPE_LABEL: Record<Card["type"], string> = {
-  component: "Component",
-  primary: "Character",
-  compound: "Compound",
 };
 
 /**
@@ -50,6 +45,7 @@ export default function QuizPanel({
   deck,
   onResolved,
   onAlias,
+  onEdit,
   autoplay = false,
 }: {
   card: Card;
@@ -59,10 +55,13 @@ export default function QuizPanel({
   onResolved: (outcome: GradeOutcome, input: string, elapsedMs: number) => void;
   /** Widen the card so the answer just rejected is accepted from now on. */
   onAlias: (cardId: string, patch: Partial<Card>) => void;
+  /** Rewrite the card outright — the typo you only notice under examination. */
+  onEdit: (cardId: string, patch: Partial<Card>) => void;
   /** Speak the reading automatically when the answer comes back correct. */
   autoplay?: boolean;
 }) {
   const voice = useJapaneseVoice();
+  const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const startedAt = useRef<number>(0);
@@ -368,6 +367,17 @@ export default function QuizPanel({
             >
               Continue <span className="opacity-60">(Enter)</span>
             </button>
+            {/* Below Continue, and quiet: a card usually needs answering, not
+                mending. It's here rather than beside the prompt because a typo
+                is easiest to see with the right answer in front of you. */}
+            <button
+              onClick={() => setEditing(true)}
+              tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
+              className="mt-3 w-full text-xs text-muted underline underline-offset-4 hover:text-foreground"
+            >
+              Edit this card
+            </button>
           </div>
         )}
 
@@ -377,6 +387,25 @@ export default function QuizPanel({
             : "Press Enter to answer. Typos are forgiven."}
         </p>
       </div>
+
+      {/* Over the session rather than instead of it: the question stays where it
+          was, and closing the form returns you to it mid-answer. Scrolls
+          internally, since the form is taller than a phone. */}
+      {editing && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-black/60 p-4">
+          <div className="mx-auto w-full max-w-lg py-6">
+            <CardForm
+              card={card}
+              autoFocus
+              onSave={(fields) => {
+                onEdit(card.id, fields);
+                setEditing(false);
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

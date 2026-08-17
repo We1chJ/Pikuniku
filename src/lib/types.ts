@@ -11,12 +11,23 @@
 export type CardType = "component" | "primary" | "compound";
 
 /**
+ * Lives here rather than beside the quiz's colours because the card form names
+ * these too, and a form importing from the quiz panel is a cycle waiting to
+ * happen once the quiz can open the form.
+ */
+export const TYPE_LABEL: Record<CardType, string> = {
+  component: "Component",
+  primary: "Character",
+  compound: "Compound",
+};
+
+/**
  * The question directions.
  *
  * `meaning` and `reading` are recognition — you're shown the Japanese. `production`
  * is the reverse: shown the English, produce the Japanese. Production is harder and
- * genuinely ambiguous in a way recognition isn't, so it's opt-in (see §1.7.1 of the
- * plan and the alternate-match handling in the grader).
+ * genuinely ambiguous in a way recognition isn't, which is what the alternate-match
+ * handling in the grader exists for (see §1.7.1 of the plan).
  */
 export type TaskKind = "meaning" | "reading" | "production";
 

@@ -152,17 +152,26 @@ export async function insertCard(card: Omit<Card, "id" | "createdAt">): Promise<
 }
 
 /**
- * Partial update, sending only the columns that actually changed.
+ * Partial update, sending only the columns actually named in the patch.
  *
- * Narrow on purpose: the only writer is the accept-my-answer shortcut, and
- * anything it doesn't touch is left alone rather than round-tripped.
+ * Every editable column is here, because a card can now be corrected outright
+ * and not merely widened. Keyed on `!== undefined` rather than truthiness: an
+ * emptied blacklist or a deleted mnemonic is a change, and testing for truth
+ * would drop exactly the edits that clear a field.
  */
 export async function updateCard(id: string, patch: Partial<Card>): Promise<void> {
   if (!supabase) throw new Error("Supabase is not configured");
   const row: Record<string, unknown> = {};
-  if (patch.meanings) row.meanings = patch.meanings;
-  if (patch.readings) row.readings = patch.readings;
-  if (patch.altProduction) row.alt_production = patch.altProduction;
+  if (patch.front !== undefined) row.front = patch.front;
+  if (patch.type !== undefined) row.type = patch.type;
+  if (patch.meanings !== undefined) row.meanings = patch.meanings;
+  if (patch.blacklist !== undefined) row.blacklist = patch.blacklist;
+  if (patch.readings !== undefined) row.readings = patch.readings;
+  if (patch.readingType !== undefined) row.reading_type = patch.readingType ?? null;
+  if (patch.altReadings !== undefined) row.alt_readings = patch.altReadings;
+  if (patch.altProduction !== undefined) row.alt_production = patch.altProduction;
+  if (patch.mnemonic !== undefined) row.mnemonic = patch.mnemonic ?? null;
+  if (patch.notes !== undefined) row.notes = patch.notes ?? null;
   if (Object.keys(row).length === 0) return;
 
   const { error } = await supabase.from("cards").update(row).eq("id", id);

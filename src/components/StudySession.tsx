@@ -97,6 +97,7 @@ function Session({ store, mode }: { store: Store; mode: SessionMode }) {
         task={current.task}
         deck={cards}
         onAlias={store.updateCard}
+        onEdit={store.updateCard}
         onResolved={(outcome, input, elapsedMs) => {
           const rating = outcomeToRating(outcome, elapsedMs);
           if (rating === null) return; // retry states never resolve

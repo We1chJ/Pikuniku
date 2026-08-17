@@ -340,13 +340,16 @@ export default function QuizPanel({
                   <dt className="w-20 shrink-0 text-muted">
                     {card.readingType ? READING_TYPE_LABEL[card.readingType] : "Reading"}
                   </dt>
-                  <dd className="jp flex items-center gap-2 font-medium">
-                    {card.readings.join("、")}
-                    <PronounceButton card={card} />
-                  </dd>
+                  <dd className="jp font-medium">{card.readings.join("、")}</dd>
                 </div>
               )}
             </dl>
+            {/* On its own line and labelled, rather than a glyph tucked beside
+                the reading: replaying the word is the second thing you want
+                here, and it has to be found rather than spotted. Outside the
+                reading row, so a card written in kana — which has no reading of
+                its own to show — can still be played back. */}
+            <PronounceButton card={card} label="Play" className="mt-3" />
             {card.mnemonic && (
               <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
                 {card.mnemonic}
